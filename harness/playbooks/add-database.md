@@ -11,6 +11,6 @@ Referencia: `AGENTS.md` §6 y §13.
 4. En los repositories que la usen, inyecta el pool con `@Inject(getPoolToken('<NOMBRE>'))`.
 5. Confirma que `/health` reporta la nueva conexión.
 6. Documenta la conexión en el `README.md` de cada módulo que la use.
-7. Corre `./init.sh`.
+7. Corre `./harness/init.sh`.
 
 Recuerda que el usuario de BD debe ser de solo lectura. El pool fuerza `default_transaction_read_only = on` como segunda barrera, no como única.

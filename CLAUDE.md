@@ -1,5 +1,5 @@
 # CLAUDE.md
 
-Las instrucciones de este repositorio viven en `AGENTS.md` (fuente única para todos los agentes). No agregues reglas aquí.
+Puente hacia el harness. Las instrucciones viven en `harness/AGENTS.md`; no agregues reglas aquí.
 
-@AGENTS.md
+@harness/AGENTS.md

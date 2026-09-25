@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # init.sh — Verifica que el proyecto esté en buen estado antes de cualquier cambio (AGENTS.md §0).
 #
-# Uso: ./init.sh [opciones]
+# Uso (desde cualquier carpeta): ./harness/init.sh [opciones]
 #   --quick       Solo harness, estructura y toolchain (sin lint, build, tests ni health)
 #   --e2e         Además ejecuta pnpm test:e2e
 #   --no-health   No consulta /health
@@ -16,8 +16,11 @@
 
 set -o pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# El script vive en harness/, pero verifica desde la raíz del proyecto.
+HARNESS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(dirname "$HARNESS_DIR")"
 cd "$ROOT" || exit 2
+H=harness
 
 QUICK=0; E2E=0; HEALTH=1; INSTALL=0
 for arg in "$@"; do
@@ -79,39 +82,43 @@ run_step() {
 # ─────────────────────────────────────────────────────────────────────────────
 section "Harness"
 
-for f in AGENTS.md CLAUDE.md GEMINI.md .cursor/rules/agents.mdc \
-         decisiones/README.md decisiones/_plantilla.md \
-         .agents/skills/nest-base/SKILL.md \
-         docs/agents/reference/configuracion.md docs/agents/reference/contrato-http.md \
-         docs/agents/reference/progress-plantilla.md; do
+for f in $H/AGENTS.md $H/init.sh $H/decisiones/README.md $H/decisiones/_plantilla.md \
+         $H/skills/nest-base/SKILL.md $H/reference/configuracion.md $H/reference/contrato-http.md \
+         $H/reference/progress-plantilla.md CLAUDE.md GEMINI.md .cursor/rules/agents.mdc; do
   need_file "$f"
 done
 
-if [ -f AGENTS.md ]; then
+if [ -f $H/AGENTS.md ]; then
   missing_sections=''
   for n in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17; do
-    grep -q "^## $n\. " AGENTS.md || missing_sections="$missing_sections §$n"
+    grep -q "^## $n\. " $H/AGENTS.md || missing_sections="$missing_sections §$n"
   done
-  if [ -z "$missing_sections" ]; then ok "AGENTS.md tiene las secciones §0–§17"
-  else fail "AGENTS.md incompleto; faltan:$missing_sections"; fi
+  if [ -z "$missing_sections" ]; then ok "$H/AGENTS.md tiene las secciones §0–§17"
+  else fail "$H/AGENTS.md incompleto; faltan:$missing_sections"; fi
 
   # Todo archivo del harness referenciado en AGENTS.md debe existir.
-  for ref in $(grep -oE '(docs/agents/(playbooks|reference)|\.agents/skills)/[A-Za-z0-9_./-]+\.md|decisiones/README\.md' AGENTS.md | sort -u); do
+  for ref in $(grep -oE "$H/(playbooks|reference|skills|agents|decisiones)/[A-Za-z0-9_./-]+\.md" $H/AGENTS.md | grep -v NNNN | sort -u); do
     [ -f "$ref" ] || fail "AGENTS.md referencia $ref, pero no existe"
   done
 fi
 
-grep -q '^@AGENTS.md' CLAUDE.md 2>/dev/null && ok "CLAUDE.md importa AGENTS.md" || fail "CLAUDE.md no importa @AGENTS.md"
-grep -q '^@\./AGENTS.md' GEMINI.md 2>/dev/null && ok "GEMINI.md importa AGENTS.md" || fail "GEMINI.md no importa @./AGENTS.md"
-grep -q 'AGENTS.md' .cursor/rules/agents.mdc 2>/dev/null && ok "Regla de Cursor apunta a AGENTS.md" || fail "La regla de Cursor no apunta a AGENTS.md"
-if [ -L .claude/skills ] && [ -f .claude/skills/nest-base/SKILL.md ]; then ok ".claude/skills enlaza a .agents/skills"
-else fail ".claude/skills no es un enlace válido a ../.agents/skills"; fi
-if [ -L .claude/agents ] && [ -f .claude/agents/lider.md ]; then ok ".claude/agents enlaza a .agents/agents"
-else fail ".claude/agents no es un enlace válido a ../.agents/agents"; fi
+# Puentes de la raíz: solo enlaces e imports hacia harness/.
+check_link() { # enlace destino-esperado archivo-de-prueba
+  if [ -L "$1" ] && [ "$(readlink "$1")" = "$2" ] && [ -e "$1/$3" -o -f "$1" ]; then ok "$1 → $2"
+  else fail "$1 debe ser un enlace simbólico a $2"; fi
+}
+check_link AGENTS.md "$H/AGENTS.md" ""
+check_link .claude/agents "../$H/agents" lider.md
+check_link .claude/skills "../$H/skills" nest-base/SKILL.md
+check_link .agents/skills "../$H/skills" nest-base/SKILL.md
+
+grep -q "^@$H/AGENTS.md" CLAUDE.md 2>/dev/null && ok "CLAUDE.md importa $H/AGENTS.md" || fail "CLAUDE.md no importa @$H/AGENTS.md"
+grep -q "^@\./$H/AGENTS.md" GEMINI.md 2>/dev/null && ok "GEMINI.md importa $H/AGENTS.md" || fail "GEMINI.md no importa @./$H/AGENTS.md"
+grep -q "$H/AGENTS.md" .cursor/rules/agents.mdc 2>/dev/null && ok "Regla de Cursor apunta a $H/AGENTS.md" || fail "La regla de Cursor no apunta a $H/AGENTS.md"
 
 agents_before=$FAILS
 for ag in lider implementador revisor; do
-  f=".agents/agents/$ag.md"
+  f="$H/agents/$ag.md"
   if [ ! -f "$f" ]; then fail "Falta el agente $f"; continue; fi
   for key in name description tools model; do
     awk 'NR==1 && $0!="---"{exit 1} NR>1 && $0=="---"{exit} NR>1{print}' "$f" | grep -q "^$key:" \
@@ -124,7 +131,7 @@ done
 section "Decisiones"
 
 decision_count=0
-for d in decisiones/[0-9][0-9][0-9][0-9]-*.md; do
+for d in $H/decisiones/[0-9][0-9][0-9][0-9]-*.md; do
   [ -f "$d" ] || continue
   decision_count=$((decision_count + 1))
   name="$(basename "$d")"
@@ -134,27 +141,28 @@ for d in decisiones/[0-9][0-9][0-9][0-9]-*.md; do
   elif [ "$estado" = "Propuesta" ]; then
     warn "$name está en Propuesta: pendiente de aceptación humana"
   fi
-  grep -q "($name)" decisiones/README.md 2>/dev/null || fail "$name no está en el índice de decisiones/README.md"
+  grep -q "($name)" $H/decisiones/README.md 2>/dev/null || fail "$name no está en el índice de $H/decisiones/README.md"
 done
-dupes="$(ls decisiones 2>/dev/null | grep -E '^[0-9]{4}-' | cut -c1-4 | sort | uniq -d | tr '\n' ' ')"
+dupes="$(ls $H/decisiones 2>/dev/null | grep -E '^[0-9]{4}-' | cut -c1-4 | sort | uniq -d | tr '\n' ' ')"
 [ -n "$dupes" ] && fail "Números de decisión duplicados: $dupes"
 ok "$decision_count decisión(es) revisada(s)"
 
 # ─────────────────────────────────────────────────────────────────────────────
 section "Progress"
 
-if [ -f progress.md ]; then
-  p_estado="$(grep -m1 '^- \*\*Estado:\*\*' progress.md | sed 's/^- \*\*Estado:\*\* *//')"
+PROGRESS="$H/progress.md"
+if [ -f "$PROGRESS" ]; then
+  p_estado="$(grep -m1 '^- \*\*Estado:\*\*' "$PROGRESS" | sed 's/^- \*\*Estado:\*\* *//')"
   case "$p_estado" in
-    TERMINADO) ok "progress.md: TERMINADO (el líder lo reinicia en la próxima tarea)" ;;
-    "EN CURSO") warn "progress.md: hay trabajo EN CURSO; confirma con el humano si se retoma" ;;
-    BLOQUEADO) warn "progress.md: BLOQUEADO; revisa 'Bloqueos y preguntas abiertas' antes de continuar" ;;
-    *) fail "progress.md: estado inválido o ausente ('$p_estado'); usa EN CURSO | BLOQUEADO | TERMINADO" ;;
+    TERMINADO) ok "$PROGRESS: TERMINADO (el líder lo reinicia en la próxima tarea)" ;;
+    "EN CURSO") warn "$PROGRESS: hay trabajo EN CURSO; confirma con el humano si se retoma" ;;
+    BLOQUEADO) warn "$PROGRESS: BLOQUEADO; revisa 'Bloqueos y preguntas abiertas' antes de continuar" ;;
+    *) fail "$PROGRESS: estado inválido o ausente ('$p_estado'); usa EN CURSO | BLOQUEADO | TERMINADO" ;;
   esac
-  p_lines="$(wc -l < progress.md | tr -d ' ')"
-  [ "$p_lines" -gt 200 ] && warn "progress.md tiene $p_lines líneas; el líder debe resumir las tareas cerradas"
+  p_lines="$(wc -l < "$PROGRESS" | tr -d ' ')"
+  [ "$p_lines" -gt 200 ] && warn "$PROGRESS tiene $p_lines líneas; el líder debe resumir las tareas cerradas"
 else
-  info "Sin progress.md: el líder lo crea desde la plantilla al iniciar una tarea"
+  info "Sin $PROGRESS: el líder lo crea desde la plantilla al iniciar una tarea"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -171,8 +179,8 @@ if git rev-parse --show-toplevel >/dev/null 2>&1; then
         fail "$secret está versionado en git"
       fi
     done
-    git ls-files --error-unmatch progress.md >/dev/null 2>&1 \
-      && warn "progress.md está versionado; es estado de trabajo y debería estar en .gitignore"
+    git ls-files --error-unmatch "$H/progress.md" >/dev/null 2>&1 \
+      && warn "$H/progress.md está versionado; es estado de trabajo y debería estar en .gitignore"
   fi
 else
   warn "No es un repositorio git"
@@ -181,7 +189,7 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 if [ ! -f package.json ]; then
   section "Proyecto"
-  info "Sin package.json: modo solo harness. Para crear la base ejecuta la skill nest-base."
+  info "Sin package.json: modo solo harness. Para crear la base ejecuta la skill nest-base ($H/skills/nest-base)."
 else
   section "Toolchain"
 
@@ -234,8 +242,18 @@ else
     done
   fi
 
+  # El harness no debe entrar al build ni a la imagen.
+  for tsc in tsconfig.json tsconfig.build.json; do
+    if [ -f "$tsc" ]; then
+      node -e "const c=JSON.parse(require('fs').readFileSync('$tsc','utf8'));process.exit((c.exclude||[]).some(e=>/^\\.?\\/?harness/.test(e))?0:1)" 2>/dev/null \
+        || fail "$tsc no excluye harness/"
+    fi
+  done
+  if [ -f .dockerignore ]; then grep -qxE '/?harness/?' .dockerignore || fail ".dockerignore no excluye harness/"
+  else fail "Falta .dockerignore"; fi
+
   if [ -f .gitignore ]; then
-    for p in .env .env.local progress.md; do
+    for p in .env .env.local "$H/progress.md"; do
       grep -qxF "$p" .gitignore || fail ".gitignore no excluye $p"
     done
   else

@@ -7,11 +7,13 @@ description: Crea la base del proyecto NestJS de este harness (Node.js en su úl
 
 Crea el esqueleto NestJS que exige `AGENTS.md`. Esta skill **instala dependencias y consulta la red**, así que solo se ejecuta cuando el humano lo pide expresamente.
 
-Referencias: `AGENTS.md` §2 (stack y dependencias aprobadas), §4 (estructura), §6 a §10 (BD, caché, auth, contrato HTTP, logging y health) y §13 (prohibiciones). Detalle de implementación: `docs/agents/reference/configuracion.md` (variables) y `docs/agents/reference/contrato-http.md` (envelope, errores, auth, caché, logging, health).
+Referencias: `AGENTS.md` §2 (stack y dependencias aprobadas), §4 (estructura), §6 a §10 (BD, caché, auth, contrato HTTP, logging y health) y §13 (prohibiciones). Detalle de implementación: `harness/reference/configuracion.md` (variables) y `harness/reference/contrato-http.md` (envelope, errores, auth, caché, logging, health).
+
+**Raíz del proyecto (`ROOT`):** la carpeta que **contiene** `harness/`, no `harness/` ni el directorio actual. Antes de empezar, haz `cd` a `ROOT`; todas las rutas de esta skill son relativas a él. El proyecto NestJS se crea en `ROOT`, nunca dentro de `harness/`.
 
 ## 0. Precondiciones: si alguna falla, detente e informa
 
-1. `./init.sh` pasa. Sin `package.json` corre en modo "solo harness".
+1. `./harness/init.sh` pasa. Sin `package.json` corre en modo "solo harness".
 2. **No existe `package.json`.** Si existe, la base ya fue creada: no la regeneres; informa y termina.
 3. `pnpm` está disponible (`pnpm -v`). Nunca uses npm ni yarn.
 
@@ -37,17 +39,21 @@ pnpm view pnpm version
 ## 2. Generar el proyecto sin pisar el harness
 
 ```bash
+# ROOT = primera carpeta hacia arriba que contiene harness/AGENTS.md
+ROOT="$(pwd)"; while [ "$ROOT" != "/" ] && [ ! -f "$ROOT/harness/AGENTS.md" ]; do ROOT="$(dirname "$ROOT")"; done
+[ -f "$ROOT/harness/AGENTS.md" ] || { echo "No se encontró harness/AGENTS.md"; exit 1; }
+cd "$ROOT"
 TMP="$(mktemp -d)"
 pnpm dlx @nestjs/cli@<version-cli> new <nombre-paquete> \
   --package-manager pnpm --strict --skip-git --directory "$TMP/app"
-rsync -a --ignore-existing --exclude node_modules "$TMP/app/" ./
+rsync -a --ignore-existing --exclude node_modules "$TMP/app/" "$ROOT/"
 rm -rf "$TMP"
 ```
 
 - `<nombre-paquete>`: el nombre del directorio del repo en kebab-case, salvo que el humano indique otro.
-- `--ignore-existing` protege `AGENTS.md`, los puentes, `decisiones/`, `docs/`, `.agents/` e `init.sh`.
+- `--ignore-existing` protege `harness/` y los puentes de la raíz (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursor/`, `.claude/` y `.agents/`).
 - Elimina el ejemplo de Nest (`app.controller.ts`, `app.service.ts`, su spec y `test/app.e2e-spec.ts`).
-- Reemplaza el `README.md` generado por uno breve en español que apunte a `AGENTS.md` y a `./init.sh`.
+- Reemplaza el `README.md` generado por uno breve en español que apunte a `AGENTS.md` y a `./harness/init.sh`.
 
 ## 3. Dependencias (solo las aprobadas en AGENTS.md §2)
 
@@ -60,7 +66,7 @@ pnpm add -D @types/pg
 
 - Sin versiones fijadas a mano: pnpm resuelve la última estable y el lockfile las congela.
 - Si pnpm avisa que ignoró scripts de build (`pnpm approve-builds`), muestra la lista al humano y espera su aprobación.
-- Cualquier paquete adicional requiere aprobación explícita y una decisión en `decisiones/`.
+- Cualquier paquete adicional requiere aprobación explícita y una decisión en `harness/decisiones/`.
 
 ## 4. Toolchain, ESLint y Prettier
 
@@ -74,20 +80,24 @@ pnpm add -D @types/pg
      "lint:check": "eslint \"{src,test}/**/*.ts\" --max-warnings 0",
      "format": "prettier --write \"{src,test}/**/*.ts\"",
      "format:check": "prettier --check \"{src,test}/**/*.ts\"",
-     "verify": "./init.sh"
+     "verify": "./harness/init.sh"
    }
    ```
-3. **ESLint:** reemplaza `eslint.config.mjs` con `templates/eslint.config.mjs`. Si la versión generada por Nest usa una API distinta (por ejemplo `defineConfig`), conserva su base y porta el bloque de reglas del harness y los overrides por archivo sin cambiar su intención:
+3. **ESLint:** reemplaza `eslint.config.mjs` con `harness/skills/nest-base/templates/eslint.config.mjs`. Si la versión generada por Nest usa una API distinta (por ejemplo `defineConfig`), conserva su base y porta el bloque de reglas del harness y los overrides por archivo sin cambiar su intención:
    - no `any`;
    - no `console`;
    - no promesas flotantes;
    - `pg` solo en `common/database` y `*.repository.ts`;
    - texto SQL solo en `*.sql.ts`;
    - nada de escrituras o DDL en `*.sql.ts`.
-4. **Prettier:** copia `templates/prettierrc.json` → `.prettierrc` y `templates/prettierignore` → `.prettierignore`.
-5. **Editor:** copia `templates/editorconfig` → `.editorconfig`.
-6. **`.gitignore`:** asegúrate de que incluye `dist/`, `coverage/`, `node_modules/`, `logs/`, `.env`, `.env.local`, `.env.*.local` y `progress.md`.
-7. **Convención SQL:** las palabras clave SQL se escriben en MAYÚSCULAS. Así las detectan la regla de ESLint y `init.sh`.
+4. **Prettier:** copia `harness/skills/nest-base/templates/prettierrc.json` → `.prettierrc` y `.../templates/prettierignore` → `.prettierignore`.
+5. **Editor:** copia `harness/skills/nest-base/templates/editorconfig` → `.editorconfig`.
+6. **Aislar el harness del proyecto:**
+   - `tsconfig.json` y `tsconfig.build.json`: agrega `"harness"` a `exclude`.
+   - `.dockerignore`: incluye `harness`, `.agents`, `.claude`, `.cursor`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.env`, `.env.local`, `node_modules`, `dist` y `coverage`.
+   - `.prettierignore`: agrega `harness`.
+7. **`.gitignore`:** asegúrate de que incluye `dist/`, `coverage/`, `node_modules/`, `logs/`, `.env`, `.env.local`, `.env.*.local` y `harness/progress.md`.
+8. **Convención SQL:** las palabras clave SQL se escriben en MAYÚSCULAS. Así las detectan la regla de ESLint y `init.sh`.
 
 ## 5. Estructura base (AGENTS.md §4)
 
@@ -122,10 +132,10 @@ Implementa cada pieza con su spec. Sin lógica de negocio y sin módulos de ejem
 
 ```bash
 pnpm lint && pnpm format
-./init.sh
+./harness/init.sh
 ```
 
-- `./init.sh` debe terminar en verde, incluido `/health`. Si no hay PostgreSQL local disponible, el health informará las BDs caídas: repórtalo al humano y no lo "arregles" desactivando checks.
+- `./harness/init.sh` debe terminar en verde, incluido `/health`. Si no hay PostgreSQL local disponible, el health informará las BDs caídas: repórtalo al humano y no lo "arregles" desactivando checks.
 - Corrige solo fallos causados por archivos que esta skill creó. **Máximo 3 intentos de corrección.** Si sigue fallando, detente y reporta la salida de `init.sh`.
 - Nunca relajes reglas de ESLint, umbrales ni checks de `init.sh` para pasar.
 
@@ -135,7 +145,7 @@ Informa:
 - las versiones resueltas (Node LTS, NestJS, pnpm);
 - los archivos creados;
 - las dependencias instaladas;
-- el resultado de `./init.sh`;
+- el resultado de `./harness/init.sh`;
 - los pendientes (por ejemplo, credenciales reales de BD en `.env.local`).
 
 No hagas commit salvo que el humano lo pida.

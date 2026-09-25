@@ -1,6 +1,6 @@
 # Decisiones
 
-Registro de las decisiones que se toman a medida que el proyecto crece. La base del harness (`AGENTS.md`, los puentes y `docs/agents/playbooks/`) **no se modifica**: todo lo nuevo se registra aquí.
+Registro de las decisiones que se toman a medida que el proyecto crece. La base del harness (`AGENTS.md`, los puentes y `harness/playbooks/`) **no se modifica**: todo lo nuevo se registra aquí.
 
 ## Reglas
 
@@ -16,3 +16,4 @@ Registro de las decisiones que se toman a medida que el proyecto crece. La base 
 | # | Decisión | Estado | Alcance | Fecha |
 |---|---|---|---|---|
 | [0001](0001-registro-de-decisiones.md) | Registrar las decisiones fuera de la base del harness | Aceptada | Todo el repositorio | 2026-09-25 |
+| [0002](0002-harness-en-carpeta-propia.md) | El harness vive en su propia carpeta `harness/` | Aceptada | Todo el repositorio | 2026-09-25 |

@@ -19,7 +19,7 @@
 
 ## Decisiones de esta sesión
 
-- <Enlaces a decisiones/NNNN-*.md aceptadas o propuestas, y acuerdos del humano que aún no son decisión formal.>
+- <Enlaces a harness/decisiones/NNNN-*.md aceptadas o propuestas, y acuerdos del humano que aún no son decisión formal.>
 
 ## Tareas
 

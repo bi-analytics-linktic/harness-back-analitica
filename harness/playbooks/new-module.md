@@ -17,4 +17,4 @@ Referencia: `AGENTS.md` §4 y §5.
 4. Registra el módulo en su padre (el módulo del cliente o `app.module.ts`).
 5. Crea la carpeta `<cliente>/<modulo>` en la colección de Postman y un encabezado `## <Módulo>` en `FRONT.md`.
 6. Agrega endpoints con `new-endpoint.md`.
-7. Corre `./init.sh`.
+7. Corre `./harness/init.sh`.

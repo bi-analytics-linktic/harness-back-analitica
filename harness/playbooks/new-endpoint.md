@@ -80,4 +80,4 @@ Agrega el endpoint, su conexión y el origen de datos.
 
 ## 4. Cierre
 
-Corre `./init.sh` y revisa el Definition of Done de `AGENTS.md` §15.
+Corre `./harness/init.sh` y revisa el Definition of Done de `AGENTS.md` §15.

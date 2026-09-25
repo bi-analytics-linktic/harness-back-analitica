@@ -12,8 +12,8 @@ Revisa el diff contra `AGENTS.md` y reporta cada hallazgo con archivo y línea, 
 - [ ] Cambios en `.env`, o `.env.local` incluido en el commit
 - [ ] Una dependencia nueva sin aprobación
 - [ ] La API falla si Redis está caído o deshabilitado
-- [ ] Se editó la base del harness (`AGENTS.md`, puentes o playbooks) en lugar de registrar la decisión en `decisiones/`
-- [ ] El cambio contradice una decisión `Aceptada` de `decisiones/`, o toma una decisión nueva sin registrarla
+- [ ] Se editó la base del harness (`AGENTS.md`, puentes o playbooks) en lugar de registrar la decisión en `harness/decisiones/`
+- [ ] El cambio contradice una decisión `Aceptada` de `harness/decisiones/`, o toma una decisión nueva sin registrarla
 
 ## Contrato y arquitectura
 
@@ -27,5 +27,5 @@ Revisa el diff contra `AGENTS.md` y reporta cada hallazgo con archivo y línea, 
 - [ ] Un spec por archivo, incluidos los casos HIT/MISS/BYPASS
 - [ ] Postman, `FRONT.md` y el README del módulo actualizados
 - [ ] Variables nuevas en `.env.example`, `.env.local` y `src/config/`
-- [ ] `./init.sh` en verde
+- [ ] `./harness/init.sh` en verde
 - [ ] Código en inglés, docs en español, commit con formato Conventional Commits
