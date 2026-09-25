@@ -103,14 +103,17 @@ if [ -f $H/AGENTS.md ]; then
 fi
 
 # Puentes de la raíz: solo enlaces e imports hacia harness/.
-check_link() { # enlace destino-esperado archivo-de-prueba
-  if [ -L "$1" ] && [ "$(readlink "$1")" = "$2" ] && [ -e "$1/$3" -o -f "$1" ]; then ok "$1 → $2"
-  else fail "$1 debe ser un enlace simbólico a $2"; fi
+# Se acepta un enlace simbólico o, donde no hay symlinks (arness --copy), una copia idéntica.
+check_link() { # enlace destino-relativo
+  local target_abs; target_abs="$(dirname "$1")/$2"
+  if [ -L "$1" ] && [ "$(readlink "$1")" = "$2" ] && [ -e "$1" ]; then ok "$1 → $2"
+  elif [ -e "$1" ] && [ ! -L "$1" ] && diff -rq "$1" "$target_abs" >/dev/null 2>&1; then ok "$1 = copia de $2"
+  else fail "$1 debe ser un enlace simbólico (o copia idéntica) a $2"; fi
 }
-check_link AGENTS.md "$H/AGENTS.md" ""
-check_link .claude/agents "../$H/agents" lider.md
-check_link .claude/skills "../$H/skills" nest-base/SKILL.md
-check_link .agents/skills "../$H/skills" nest-base/SKILL.md
+check_link AGENTS.md "$H/AGENTS.md"
+check_link .claude/agents "../$H/agents"
+check_link .claude/skills "../$H/skills"
+check_link .agents/skills "../$H/skills"
 
 grep -q "^@$H/AGENTS.md" CLAUDE.md 2>/dev/null && ok "CLAUDE.md importa $H/AGENTS.md" || fail "CLAUDE.md no importa @$H/AGENTS.md"
 grep -q "^@\./$H/AGENTS.md" GEMINI.md 2>/dev/null && ok "GEMINI.md importa $H/AGENTS.md" || fail "GEMINI.md no importa @./$H/AGENTS.md"
@@ -187,7 +190,45 @@ else
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-if [ ! -f package.json ]; then
+PKG_NAME=''
+[ -f package.json ] && PKG_NAME="$(node -p "require('./package.json').name || ''" 2>/dev/null)"
+HARNESS_PKG='@linktic/arness-back'
+
+if [ "$PKG_NAME" = "$HARNESS_PKG" ]; then
+  # Repo fuente del paquete: se verifica el CLI, no un proyecto NestJS.
+  section "Paquete $HARNESS_PKG"
+  info "Repo fuente del harness: se omiten las verificaciones de proyecto NestJS"
+  need_file bin/arness.mjs
+  need_file CHANGELOG.md
+  need_file docs/adr/README.md
+  for d in $H/decisiones/[0-9][0-9][0-9][0-9]-*.md; do
+    [ -f "$d" ] && fail "$d: el paquete no publica decisiones de proyecto; las del harness van en docs/adr/"
+  done
+  if [ "$QUICK" -eq 1 ]; then info "--quick: se omiten los tests del CLI"
+  else run_step "Tests del CLI" node --test; fi
+else
+  # ── Instalación del harness (manifiesto e integridad) ─────────────────────
+  section "Instalación del harness"
+  if [ -f $H/.arness.json ]; then
+    inst_v="$(node -p "require('./$H/.arness.json').version" 2>/dev/null)"
+    ok "Instalado $HARNESS_PKG@$inst_v"
+    cli="node_modules/$HARNESS_PKG/bin/arness.mjs"
+    if [ -f "$cli" ]; then
+      dep_v="$(node -p "require('./node_modules/$HARNESS_PKG/package.json').version" 2>/dev/null)"
+      [ "$dep_v" != "$inst_v" ] && warn "El paquete en node_modules es $dep_v y harness/ está en $inst_v: ejecuta pnpm arness sync"
+      if node "$cli" status --check >"$LOG_DIR/status.log" 2>&1; then ok "La base coincide con el manifiesto"
+      else fail "La base del harness fue modificada o está incompleta (pnpm arness status)"; sed 's/^/      │ /' "$LOG_DIR/status.log"; fi
+    elif [ -f package.json ]; then
+      warn "$HARNESS_PKG no está en node_modules: no se pudo verificar la integridad de la base"
+    fi
+  else
+    fail "Falta $H/.arness.json: instala el harness (ver README de $HARNESS_PKG) y ejecuta arness init"
+  fi
+fi
+
+if [ "$PKG_NAME" = "$HARNESS_PKG" ]; then
+  :
+elif [ ! -f package.json ]; then
   section "Proyecto"
   info "Sin package.json: modo solo harness. Para crear la base ejecuta la skill nest-base ($H/skills/nest-base)."
 else

@@ -1,19 +1,17 @@
 # Decisiones
 
-Registro de las decisiones que se toman a medida que el proyecto crece. La base del harness (`AGENTS.md`, los puentes y `harness/playbooks/`) **no se modifica**: todo lo nuevo se registra aquí.
+Decisiones **de este repositorio**, que se van tomando a medida que el proyecto crece. Esta carpeta pertenece al repo: el paquete `@linktic/arness-back` la crea una sola vez y `arness sync` nunca la modifica. El resto de `harness/` es la base gestionada por el paquete y **no se edita**: todo lo nuevo se registra aquí.
 
 ## Reglas
 
-- Un archivo por decisión: `NNNN-titulo-en-kebab-case.md`, con numeración correlativa y a partir de `_plantilla.md`.
+- Un archivo por decisión: `NNNN-titulo-en-kebab-case.md`, con numeración correlativa y a partir de `_plantilla.md`. Atajo: `pnpm arness decision new "<título>"`.
 - **Estados:** `Propuesta` → `Aceptada` → `Reemplazada por NNNN` | `Obsoleta`. Solo las decisiones `Aceptada` son vinculantes.
 - Una decisión `Aceptada` prevalece sobre la base **solo dentro de su alcance**.
 - Las decisiones aceptadas no se reescriben. Para cambiar una se crea otra que la reemplace, y en la anterior solo se actualiza el estado.
 - Los agentes redactan las decisiones en estado `Propuesta`; solo un humano las pasa a `Aceptada`.
-- Toda decisión se agrega a la tabla de abajo.
+- Toda decisión se agrega a la tabla de abajo, que debe quedar al final de este archivo.
 
 ## Índice
 
 | # | Decisión | Estado | Alcance | Fecha |
 |---|---|---|---|---|
-| [0001](0001-registro-de-decisiones.md) | Registrar las decisiones fuera de la base del harness | Aceptada | Todo el repositorio | 2026-09-25 |
-| [0002](0002-harness-en-carpeta-propia.md) | El harness vive en su propia carpeta `harness/` | Aceptada | Todo el repositorio | 2026-09-25 |

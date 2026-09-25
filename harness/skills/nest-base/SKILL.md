@@ -66,6 +66,11 @@ pnpm add -D @types/pg
 
 - Sin versiones fijadas a mano: pnpm resuelve la última estable y el lockfile las congela.
 - Si pnpm avisa que ignoró scripts de build (`pnpm approve-builds`), muestra la lista al humano y espera su aprobación.
+- - Agrega el harness como devDependency desde git, con el tag de la versión del manifiesto (no hay registro npm):
+  ```bash
+  pnpm add -D "git+https://github.com/bi-analytics-linktic/harness-back.git#v$(node -p "require('./harness/.arness.json').version")"
+  ```
+  Requiere acceso de lectura al repo en GitHub. Si falla por autenticación, detente e informa; no lo quites de la lista.
 - Cualquier paquete adicional requiere aprobación explícita y una decisión en `harness/decisiones/`.
 
 ## 4. Toolchain, ESLint y Prettier
@@ -80,7 +85,9 @@ pnpm add -D @types/pg
      "lint:check": "eslint \"{src,test}/**/*.ts\" --max-warnings 0",
      "format": "prettier --write \"{src,test}/**/*.ts\"",
      "format:check": "prettier --check \"{src,test}/**/*.ts\"",
-     "verify": "./harness/init.sh"
+     "verify": "./harness/init.sh",
+     "harness:status": "arness status",
+     "harness:sync": "arness sync"
    }
    ```
 3. **ESLint:** reemplaza `eslint.config.mjs` con `harness/skills/nest-base/templates/eslint.config.mjs`. Si la versión generada por Nest usa una API distinta (por ejemplo `defineConfig`), conserva su base y porta el bloque de reglas del harness y los overrides por archivo sin cambiar su intención:

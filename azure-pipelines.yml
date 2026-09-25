@@ -1,0 +1,36 @@
+# CI de @linktic/arness-back: tests del CLI y verificación del harness.
+# No hay registro npm: los backends instalan el paquete desde git con un tag vX.Y.Z.
+trigger:
+  branches:
+    include: [main]
+  tags:
+    include: ['v*']
+
+pr:
+  branches:
+    include: [main]
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSpec: '24.x'
+    displayName: Node LTS
+
+  - script: corepack enable
+    displayName: Habilitar pnpm
+
+  - script: pnpm test
+    displayName: Tests del CLI
+
+  - script: ./harness/init.sh --quick
+    displayName: Verificar harness
+
+  - script: |
+      TAG="${BUILD_SOURCEBRANCH#refs/tags/v}"
+      PKG="$(node -p "require('./package.json').version")"
+      [ "$TAG" = "$PKG" ] || { echo "El tag v$TAG no coincide con package.json ($PKG)"; exit 1; }
+    displayName: Tag = versión de package.json
+    condition: startsWith(variables['Build.SourceBranch'], 'refs/tags/v')

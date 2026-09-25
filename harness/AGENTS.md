@@ -2,7 +2,7 @@
 
 Fuente única de instrucciones para cualquier agente IA (Claude Code, Codex, Gemini CLI, Cursor u otro). Vive en `harness/AGENTS.md`; el `AGENTS.md` de la raíz es un enlace simbólico a este archivo, y `CLAUDE.md`, `GEMINI.md` y `.cursor/rules/` solo apuntan aquí. **Todas las rutas son relativas a la raíz del proyecto.** Los detalles de consulta están en `harness/reference/` y se leen **solo cuando la tarea lo requiere**.
 
-> **Base del harness: no se modifica a medida que el proyecto crece.** Toda decisión posterior va en `harness/decisiones/` (§17). Lee `harness/decisiones/README.md` antes de trabajar.
+> **Base del harness: la instala y actualiza el paquete `@linktic/arness-back` (desde git; `pnpm arness sync`) y no se edita en este repo.** Toda decisión posterior va en `harness/decisiones/` (§17), que pertenece al repo. Lee `harness/decisiones/README.md` antes de trabajar.
 
 ## 0. Antes de empezar: `./harness/init.sh`
 
@@ -38,7 +38,7 @@ No es transaccional: no crea, modifica ni borra datos de negocio.
 | Calidad / tests | ESLint + Prettier; Jest + Supertest |
 | Entrega | Docker + Azure Pipelines |
 
-**Dependencias aprobadas:** las de la tabla, `pino-http`, `@types/pg` y las que genera `nest new`. Cualquier otra requiere aprobación humana registrada en `harness/decisiones/`. La base del proyecto se crea con la skill `nest-base`.
+**Dependencias aprobadas:** las de la tabla, `pino-http`, `@types/pg`, `@linktic/arness-back` (dev) y las que genera `nest new`. Cualquier otra requiere aprobación humana registrada en `harness/decisiones/`. La base del proyecto se crea con la skill `nest-base`.
 
 ## 3. Comandos
 
@@ -48,6 +48,8 @@ pnpm start:dev | pnpm build
 pnpm lint | pnpm lint:check        # --fix | sin corregir, 0 warnings
 pnpm format | pnpm format:check
 pnpm test | pnpm test:e2e | pnpm test:cov
+pnpm arness status | sync           # integridad y versión del harness | actualizar la base
+pnpm arness decision new "<título>" # nueva decisión en harness/decisiones/
 ```
 
 ## 4. Estructura
@@ -206,4 +208,4 @@ La base del harness (todo `harness/` salvo `harness/decisiones/` y `harness/prog
 Un agente:
 1. Lee las decisiones `Aceptada` relevantes antes de implementar.
 2. Ante una decisión humana no cubierta por la base, o una aprobación de algo prohibido, redacta la decisión en `Propuesta` y pide que la acepten.
-3. **Nunca** edita la base, salvo que el humano lo pida explícitamente para mantener el harness.
+3. **Nunca** edita la base. `arness sync` detecta las ediciones y se detiene. Las mejoras al harness se proponen en el repo del paquete `@linktic/arness-back` y llegan con una nueva versión.

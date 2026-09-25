@@ -1,0 +1,37 @@
+{
+  "name": "@linktic/arness-back",
+  "version": "0.1.0",
+  "description": "Harness de agentes IA (Claude Code, Codex, Gemini CLI, Cursor) para backends NestJS de analítica",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bi-analytics-linktic/harness-back.git"
+  },
+  "type": "module",
+  "bin": {
+    "arness": "bin/arness.mjs"
+  },
+  "files": [
+    "bin/",
+    "harness/",
+    "!harness/progress.md",
+    "!harness/.arness.json",
+    "!harness/decisiones/[0-9]*.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "verify": "./harness/init.sh",
+    "pack:check": "npm pack --dry-run"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "harness",
+    "agents",
+    "claude-code",
+    "codex",
+    "nestjs"
+  ],
+  "license": "UNLICENSED"
+}
