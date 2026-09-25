@@ -1,0 +1,8 @@
+---
+description: Reglas del repositorio (fuente única en AGENTS.md)
+alwaysApply: true
+---
+
+Sigue estrictamente `AGENTS.md` en la raíz del repositorio y los playbooks de `docs/agents/playbooks/`. No agregues reglas aquí.
+
+@AGENTS.md
