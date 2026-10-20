@@ -1,12 +1,14 @@
 // @ts-check
-// ESLint del harness (AGENTS.md §5, §6, §13 y §14).
+// ESLint del harness (AGENTS.md §4, §5, §6, §13 y §14).
 import eslint from '@eslint/js';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
+import { architectureBoundaries } from './eslint.boundaries.mjs';
 
-// Las palabras clave SQL se escriben en MAYÚSCULAS por convención.
-const SQL_TEXT = '^\\s*(SELECT|WITH|INSERT|UPDATE|DELETE)\\s';
+// Las palabras clave SQL se escriben en MAYÚSCULAS por convención. Detecta el SQL al inicio del
+// literal, también tras saltos de línea o paréntesis (subconsultas), incluidas escrituras.
+const SQL_TEXT = '^[\\s(]*(SELECT|WITH|INSERT|UPDATE|DELETE|MERGE)\\s';
 const SQL_WRITE =
   '\\b(INSERT\\s+INTO|UPDATE\\s+\\S+\\s+SET|DELETE\\s+FROM|MERGE\\s+INTO|TRUNCATE|DROP\\s|ALTER\\s|CREATE\\s|GRANT\\s|REVOKE\\s)';
 
@@ -14,7 +16,7 @@ const SQL_OUTSIDE_SQL_FILE = 'El texto SQL solo puede vivir en *.sql.ts (AGENTS.
 const SQL_WRITE_FORBIDDEN = 'La BD es de solo lectura: prohibido escribir o ejecutar DDL (AGENTS.md §6).';
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'coverage/**', 'node_modules/**', 'eslint.config.mjs'] },
+  { ignores: ['dist/**', 'coverage/**', 'node_modules/**', 'eslint.config.mjs', 'eslint.boundaries.mjs'] },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   eslintPluginPrettierRecommended,
@@ -51,6 +53,8 @@ export default tseslint.config(
       ],
     },
   },
+  // Fronteras: common no importa de modules y los módulos no se importan entre sí.
+  ...architectureBoundaries,
   {
     files: ['src/common/database/**/*.ts', 'src/**/*.repository.ts', 'src/**/*.repository.spec.ts'],
     rules: { 'no-restricted-imports': 'off' },

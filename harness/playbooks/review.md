@@ -8,6 +8,8 @@ Revisa el diff contra `AGENTS.md` y reporta cada hallazgo con archivo y línea, 
 - [ ] `ORDER BY` o nombres de columna que no salen de una allowlist
 - [ ] Cualquier escritura, DDL o migración
 - [ ] Un endpoint nuevo sin guard JWT, o un `@Public()` fuera de `login`, `refresh` o `health`
+- [ ] CORS abierto: `enableCors()` sin opciones, `origin: true`, `'*'`, reflejar el `Origin`, `credentials: true`, o `CORS_ORIGINS` con comodín
+- [ ] El monitor sin `MonitorSessionGuard`, marcado `@Public()`, dentro de `/api/v1`, con `<script>`, o un widget que muestra secretos, SQL, errores crudos o datos de negocio
 - [ ] Tokens, contraseñas o secretos en logs, respuestas, código o commits
 - [ ] Cambios en `.env`, o `.env.local` incluido en el commit
 - [ ] Una dependencia nueva sin aprobación
@@ -19,7 +21,8 @@ Revisa el diff contra `AGENTS.md` y reporta cada hallazgo con archivo y línea, 
 
 ## Contrato y arquitectura
 
-- [ ] Estructura del endpoint según §5, y regla de agrupación (más de 2 archivos del mismo tipo)
+- [ ] Estructura del endpoint según §5, y regla de agrupación (más de 2 archivos del mismo tipo en una carpeta)
+- [ ] Fronteras: `common/` no importa de `modules/` y ningún módulo importa de otro módulo o cliente
 - [ ] El service depende de la interfaz del repository, no de `pg`
 - [ ] Envelope `{ data, meta? }` y errores `{ error: {...} }` con el status correcto
 - [ ] Si cambió `.columns.ts` o los filtros, `FRONT.md` está actualizado y la versión de la clave de caché subió

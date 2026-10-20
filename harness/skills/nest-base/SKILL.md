@@ -7,7 +7,9 @@ description: Crea la base del proyecto NestJS de este harness (Node.js en su úl
 
 Crea el esqueleto NestJS que exige `AGENTS.md`. Esta skill **instala dependencias y consulta la red**, así que solo se ejecuta cuando el humano lo pide expresamente.
 
-Referencias: `AGENTS.md` §2 (stack y dependencias aprobadas), §4 (estructura), §6 a §10 (BD, caché, auth, contrato HTTP, logging y health) y §13 (prohibiciones). Detalle de implementación: `harness/reference/configuracion.md` (variables) y `harness/reference/contrato-http.md` (envelope, errores, auth, caché, logging, health).
+Referencias: `AGENTS.md` §2 (stack y dependencias aprobadas), §4 (estructura y fronteras), §6 a §10 (BD, caché, auth, contrato HTTP y CORS, logging, health y monitor) y §13 (prohibiciones). Detalle de implementación: `harness/reference/configuracion.md` (variables) y `harness/reference/contrato-http.md` (envelope, errores, auth, CORS, caché, logging, health, monitor).
+
+**Plantillas** (`harness/skills/nest-base/templates/`): se copian tal cual al proyecto, sin cambiar su intención. Cada archivo indica su destino en la primera línea; quita ese comentario al copiarlo.
 
 **Raíz del proyecto (`ROOT`):** la carpeta que **contiene** `harness/`, no `harness/` ni el directorio actual. Antes de empezar, haz `cd` a `ROOT`; todas las rutas de esta skill son relativas a él. El proyecto NestJS se crea en `ROOT`, nunca dentro de `harness/`.
 
@@ -60,11 +62,12 @@ rm -rf "$TMP"
 ```bash
 pnpm install
 pnpm add @nestjs/config @nestjs/jwt @nestjs/terminus pg ioredis \
-  class-validator class-transformer nestjs-pino pino-http
-pnpm add -D @types/pg
+  class-validator class-transformer nestjs-pino pino-http react react-dom
+pnpm add -D @types/pg @types/react @types/react-dom
 ```
 
 - Sin versiones fijadas a mano: pnpm resuelve la última estable y el lockfile las congela.
+- `react` y `react-dom` son solo para el monitor (`src/common/monitor/`); no se usan en ningún otro lugar.
 - Si pnpm avisa que ignoró scripts de build (`pnpm approve-builds`), muestra la lista al humano y espera su aprobación.
 - Agrega el harness como devDependency desde git, con el tag de la versión del manifiesto (no hay registro npm):
   ```bash
@@ -90,13 +93,14 @@ pnpm add -D @types/pg
      "harness:sync": "arness sync"
    }
    ```
-3. **ESLint:** reemplaza `eslint.config.mjs` con `harness/skills/nest-base/templates/eslint.config.mjs`. Si la versión generada por Nest usa una API distinta (por ejemplo `defineConfig`), conserva su base y porta el bloque de reglas del harness y los overrides por archivo sin cambiar su intención:
+3. **ESLint:** reemplaza `eslint.config.mjs` con `harness/skills/nest-base/templates/eslint.config.mjs` y copia `.../templates/eslint.boundaries.mjs` a la raíz (la importa `eslint.config.mjs`). Si la versión generada por Nest usa una API distinta (por ejemplo `defineConfig`), conserva su base y porta el bloque de reglas del harness y los overrides por archivo sin cambiar su intención:
    - no `any`;
    - no `console`;
    - no promesas flotantes;
    - `pg` solo en `common/database` y `*.repository.ts`;
-   - texto SQL solo en `*.sql.ts`;
-   - nada de escrituras o DDL en `*.sql.ts`.
+   - texto SQL solo en `*.sql.ts` (también tras saltos de línea o `(`, e incluidas escrituras);
+   - nada de escrituras o DDL en `*.sql.ts`;
+   - fronteras (`eslint.boundaries.mjs`): `src/common` no importa de `src/modules`, y un módulo no importa de otro módulo ni de otro cliente; solo sale hacia `src/common` y `src/config`. Usa `@typescript-eslint/no-restricted-imports`, separada de la regla de `pg`, sin dependencias nuevas.
 4. **Prettier:** copia `harness/skills/nest-base/templates/prettierrc.json` → `.prettierrc` y `.../templates/prettierignore` → `.prettierignore`.
 5. **Editor:** copia `harness/skills/nest-base/templates/editorconfig` → `.editorconfig`.
 6. **Aislar el harness del proyecto:**
@@ -112,25 +116,27 @@ Implementa cada pieza con su spec. Sin lógica de negocio y sin módulos de ejem
 
 | Ruta | Contenido mínimo |
 |---|---|
-| `src/main.ts` | Logger pino (`bufferLogs`), prefijo `api/v1` excluyendo `health`, `ValidationPipe({ whitelist, forbidNonWhitelisted, transform })`, `enableShutdownHooks`, puerto desde config |
+| `src/main.ts` | Logger pino (`bufferLogs`), prefijo `api/v1` excluyendo `health` y `monitor` (`{ exclude: ['health', 'monitor', 'monitor/{*path}'] }`, o la sintaxis de rutas de la versión de Nest), `ValidationPipe({ whitelist, forbidNonWhitelisted, transform })`, `app.enableCors(buildCorsOptions(...))` con los valores validados de config, `enableShutdownHooks`, puerto desde config |
 | `src/app.module.ts` | Importa config, logging, database, cache, auth, health; registra el guard JWT global y el filtro de errores |
-| `src/config/` | `ConfigModule` global con `envFilePath: ['.env.local', '.env']`; validación con class-validator que falla al arrancar, incluida la validación dinámica de `DB_<NOMBRE>_*` por cada nombre en `DATABASES` |
+| `src/config/` | `ConfigModule` global con `envFilePath: ['.env.local', '.env']`; validación con class-validator que falla al arrancar, incluida la validación dinámica de `DB_<NOMBRE>_*` por cada nombre en `DATABASES`. `cors.ts` y `cors.spec.ts` desde `templates/cors/`: la validación llama a `parseCorsOrigins` y `parseCorsMaxAge`, así que la app no arranca sin `CORS_ORIGINS` o con `*` |
 | `src/common/database/` | `DatabaseModule` dinámico: un `Pool` por nombre, `getPoolToken(name)`, sesión con `default_transaction_read_only=on` y `statement_timeout`, cierre en shutdown |
 | `src/common/cache/` | `CacheService` sobre ioredis (`lazyConnect`, `enableOfflineQueue: false`, `commandTimeout`, reintentos con backoff). No lanza nunca y devuelve `HIT` / `MISS` / `BYPASS`. Hash estable de filtros (claves ordenadas → sha256). Con `CACHE_ENABLED=false` no conecta |
-| `src/common/auth/` | `POST auth/login` y `POST auth/refresh` (`@Public()`), `timingSafeEqual` sobre sha256 de ambos valores, secretos distintos y claim `type`, `JwtAuthGuard` como `APP_GUARD` |
+| `src/common/auth/` | `POST auth/login` y `POST auth/refresh` (`@Public()`), `timingSafeEqual` sobre sha256 de ambos valores, secretos distintos y claim `type`, `JwtAuthGuard` como `APP_GUARD`. El guard omite las rutas con `@Public()` y con `IS_MONITOR_ROUTE_KEY` (`@MonitorRoute()`, de `src/common/monitor/monitor.decorators.ts`) |
 | `src/common/http/` | Tipos `{ data, meta? }`, filtro global de errores `{ error: { code, message, details?, requestId, path, timestamp } }`. Errores de pg: `57014` → 504 `QUERY_TIMEOUT`; errores de conexión o `08*` / `57P01` → 503 `DATABASE_UNAVAILABLE` |
 | `src/common/logging/` | `nestjs-pino` en JSON, `genReqId` desde `X-Request-Id` o UUID y devuelto en la respuesta, `redact` de authorization, password, tokens y `*_SECRET` / `*_PASSWORD` |
 | `src/common/health/` | `GET /health` público con terminus. Indicadores `db_<nombre en minúsculas>` por conexión y `cache` con estado `up` / `down` / `disabled`; la caché nunca vuelve el health a 503 |
-| `test/` | `auth.e2e-spec.ts` (login OK, login inválido, refresh, 401 sin token) y `health.e2e-spec.ts` (pools y Redis mockeados con `overrideProvider`) |
+| `src/common/monitor/` | Copia `templates/monitor/` completo (con sus specs) y registra `MonitorModule` en `app.module.ts`. `GET /monitor` fuera de `/api/v1`, `404` si `MONITOR_ENABLED` no es `true`, login con `ACCESS_TOKEN` y cookie de sesión, cabeceras CSP sin scripts, widget base `endpoints-total` (contrato-http.md, Monitor) |
+| `test/` | `auth.e2e-spec.ts` (login OK, login inválido, refresh, 401 sin token), `health.e2e-spec.ts` (pools y Redis mockeados con `overrideProvider`), y `cors.e2e-spec.ts` y `monitor.e2e-spec.ts` desde `templates/e2e/` |
 
 ### Archivos de soporte
 
-- **`.env.example` y `.env.local`:** las mismas claves. Incluyen `PORT=3000`, `DATABASES=MAIN`, `DB_MAIN_*`, `ACCESS_TOKEN=example123`, `JWT_*`, `CACHE_*`, `REDIS_URL` y `LOG_LEVEL`. En `.env.example` todos los secretos llevan valores de ejemplo. **No crees ni toques `.env`.**
+- **`.env.example` y `.env.local`:** las mismas claves. Incluyen `PORT=3000`, `DATABASES=MAIN`, `DB_MAIN_*`, `ACCESS_TOKEN=example123`, `JWT_*`, `CACHE_*`, `REDIS_URL`, `LOG_LEVEL`, `CORS_ORIGINS=http://localhost:4200`, `CORS_MAX_AGE_SECONDS=600`, `MONITOR_ENABLED=false` y `MONITOR_SESSION_EXPIRES_IN=15m`. En `.env.example` todos los secretos llevan valores de ejemplo. **No crees ni toques `.env`.**
 - **`postman/arness-back.postman_collection.json`** (formato v2.1): variables `baseUrl`, `accessToken` y `refreshToken`, y auth Bearer heredada. Carpeta `Auth` con Login (su script de test guarda los tokens) y Refresh, más la request `Health`. Agrega también `postman/local.postman_environment.json` con `baseUrl=http://localhost:3000`.
 - **`FRONT.md`:**
   - flujo de auth (login, uso del Bearer, refresh ante `401 TOKEN_EXPIRED`);
   - envelope `{ data, meta? }` y formato de error;
   - significado de `X-Cache`;
+  - CORS: el origen del frontend debe estar en `CORS_ORIGINS` de cada entorno (pedirlo al backend);
   - endpoints de Auth con su consumo recomendado.
 - **`Dockerfile`:** multi-stage con `node:<major-lts>-alpine`, `corepack enable`, `pnpm install --frozen-lockfile`, build y una imagen final solo con `dist/` y las dependencias de producción; usuario no root y `HEALTHCHECK` sobre `/health`.
 - **`azure-pipelines.yml`:** Node desde `.nvmrc`, `corepack enable`, `pnpm install --frozen-lockfile`, `lint:check`, `format:check`, `build`, `test` y `docker build`.

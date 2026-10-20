@@ -5,7 +5,7 @@ Referencia: `AGENTS.md` §4 y §5.
 1. **Confirmar con el humano:** nombre del cliente (carpeta de primer nivel), nombre del módulo, segmento base de la URL y conexión de BD por defecto.
 2. **Cliente nuevo:** crea `src/modules/<cliente>/`. Si se quiere agrupar sus módulos, agrega `<cliente>.module.ts` que los importe, y regístralo en `app.module.ts`.
 3. **Módulo nuevo:** crea `src/modules/<cliente>/<modulo>/` con:
-   - `<modulo>.module.ts`: `@Module({ controllers: [], providers: [] })`, sin imports de otros módulos de negocio.
+   - `<modulo>.module.ts`: `@Module({ controllers: [], providers: [] })`, sin imports de otros módulos de negocio. El código del módulo solo importa de su propia carpeta, de `src/common/` y de `src/config/` (ESLint lo verifica).
    - `README.md` con esta plantilla:
      ```markdown
      # <Módulo>

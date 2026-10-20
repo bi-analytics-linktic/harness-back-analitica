@@ -22,8 +22,11 @@ steps:
   - script: corepack enable
     displayName: Habilitar pnpm
 
+  - script: pnpm install --frozen-lockfile
+    displayName: Dependencias de desarrollo (eslint para probar las plantillas)
+
   - script: pnpm test
-    displayName: Tests del CLI
+    displayName: Tests del CLI y de las plantillas
 
   # El paquete se exige a sí mismo el modo estricto; los proyectos instalados usan advertencias.
   - script: ./harness/init.sh --quick --strict

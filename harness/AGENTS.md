@@ -41,7 +41,7 @@ No es transaccional: no crea, modifica ni borra datos de negocio.
 | Calidad / tests | ESLint + Prettier; Jest + Supertest |
 | Entrega | Docker + Azure Pipelines |
 
-**Dependencias aprobadas:** las de la tabla, `pino-http`, `@types/pg`, `@linktic/arness-back` (dev) y las que genera `nest new`. Cualquier otra requiere aprobación humana registrada en `harness/decisiones/`. La base del proyecto se crea con la skill `nest-base`.
+**Dependencias aprobadas:** las de la tabla, `pino-http`, `@types/pg`, `@linktic/arness-back` (dev) y las que genera `nest new`. Además `react` y `react-dom` (con `@types/react` y `@types/react-dom` en dev), **solo** para renderizar el monitor en el servidor (§10). Cualquier otra requiere aprobación humana registrada en `harness/decisiones/`. La base del proyecto se crea con la skill `nest-base`.
 
 ## 3. Comandos
 
@@ -62,7 +62,7 @@ pnpm arness decision new "<título>" # nueva decisión en harness/decisiones/
 src/
 ├── main.ts · app.module.ts
 ├── config/          # carga y validación de variables de entorno
-├── common/          # transversal, sin negocio: auth, database, cache, http, logging, health
+├── common/          # transversal, sin negocio: auth, database, cache, http, logging, health, monitor
 └── modules/<cliente>/<modulo>/
     ├── README.md
     ├── <modulo>.module.ts
@@ -74,7 +74,8 @@ Raíz (proyecto NestJS): `postman/`, `FRONT.md`, `test/` (e2e), `.env.example`, 
 Harness (todo en `harness/`, separado del proyecto): `AGENTS.md`, `init.sh`, `agents/`, `skills/`, `playbooks/`, `reference/`, `decisiones/`, `arness.config.json` (opcional, del repo) y `progress.md` (estado de trabajo, no versionado). En la raíz solo quedan puentes: el enlace `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursor/rules/`, y los enlaces `.claude/agents`, `.claude/skills` y `.agents/skills`. El código del proyecto nunca vive en `harness/`, y `harness/` nunca entra al build, a los tests ni a la imagen Docker.
 
 - El primer nivel de `src/modules/` es **siempre el cliente** (ej. `src/modules/fiduprevisora/`).
-- `common/` no importa de `modules/`. Los módulos no se importan entre sí; lo compartido va a `common/`.
+- `common/` no importa de `modules/`. Los módulos no se importan entre sí (ni entre clientes); lo compartido va a `common/`. Un módulo solo sale de su carpeta hacia `src/common/` o `src/config/`.
+- Lo verifican ESLint (`eslint.boundaries.mjs`, regla `@typescript-eslint/no-restricted-imports`) e `init.sh`.
 
 ## 5. Patrón por endpoint (hexagonal por feature)
 
@@ -90,9 +91,11 @@ Un reporte es `GET /api/v1/<modulo>/<segmento>` y vive en una carpeta con estos 
 | `<e>-query.dto.ts` | Query params tal como llegan por HTTP, con validación |
 | `<e>-filters.dto.ts` | Filtros normalizados: lo que cruza las capas |
 | `<e>.entity.ts` | Tipo de la fila devuelta |
-| `*.spec.ts` | Un spec por archivo |
+| `*.spec.ts` | Un spec por archivo con lógica: controller, service, repository, sql y query DTO como mínimo |
 
-**Regla de agrupación:** si un módulo tiene **más de 2 archivos del mismo tipo**, se agrupan en una carpeta por tipo (`controllers/`, `services/`…). Con 1 o 2, estructura plana.
+**Regla de agrupación:** si una carpeta del módulo tiene **más de 2 archivos del mismo tipo**, se agrupan en una carpeta por tipo (`controllers/`, `services/`, `repositories/`, `sql/`, `columns/`, `dto/`, `entities/`). Con 1 o 2, estructura plana.
+
+`init.sh` verifica la regla de agrupación y que cada `<e>.controller.ts` tenga en su módulo los archivos de la tabla y sus specs.
 
 ## 6. Base de datos
 
@@ -118,6 +121,7 @@ Un reporte es `GET /api/v1/<modulo>/<segmento>` y vive en una carpeta con estos 
 - **Refresh:** `POST /api/v1/auth/refresh` emite un par nuevo.
 - **Tokens:** secretos distintos para access y refresh, y el claim `type` se valida.
 - **Guard global:** `JwtAuthGuard` protege todo; `@Public()` **solo** en `login`, `refresh` y `health`.
+- **Monitor:** no es `@Public()`. `JwtAuthGuard` omite las rutas marcadas con `@MonitorRoute()` y las protege `MonitorSessionGuard` con su cookie de sesión (§10). El resto de la API solo acepta `Bearer`.
 - **Detalle:** `harness/reference/contrato-http.md`.
 
 ## 9. Contrato HTTP
@@ -127,12 +131,14 @@ Un reporte es `GET /api/v1/<modulo>/<segmento>` y vive en una carpeta con estos 
 - **Éxito:** `{ data, meta? }`. `meta` (`pagination` y `filters`) solo cuando el endpoint pagina o filtra.
 - **Error:** `{ error: { code, message, details?, requestId, path, timestamp } }` con el status HTTP correcto.
 - Los errores de PostgreSQL nunca se exponen tal cual.
-- **Ejemplos y tabla de códigos:** `harness/reference/contrato-http.md`.
+- **CORS:** allowlist por entorno en `CORS_ORIGINS` (orígenes exactos, `https://` salvo `localhost`). Nunca `*`, `origin: true` ni reflejar el origen de la petición; sin `credentials`. Métodos `GET`, `POST` y `OPTIONS`.
+- **Ejemplos, tabla de códigos y CORS:** `harness/reference/contrato-http.md`.
 
-## 10. Logging y health
+## 10. Logging, health y monitor
 
 - **Logs:** JSON estructurado con `requestId` (`X-Request-Id`), con redacción de tokens, contraseñas y secretos. Nunca `console.log`.
 - **Health:** `GET /health` es público y reporta cada BD y la caché. Si una BD está caída responde `503`; si Redis está caído o deshabilitado, sigue en `200`.
+- **Monitor:** `GET /monitor`, fuera de `/api/v1`, es un tablero HTML renderizado en el servidor con React, sin JavaScript en el cliente. Se activa con `MONITOR_ENABLED=true` (si no, `404`). Pide la misma contraseña que `/auth/login` y abre una sesión en cookie `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/monitor`. Cada dato es un widget (`MonitorWidget`) y un widget que falla se muestra como "no disponible". **Nunca** muestra secretos, SQL, errores de PostgreSQL ni datos de negocio. Detalle: `harness/reference/contrato-http.md`; widgets nuevos: `harness/playbooks/new-monitor-widget.md`.
 
 ## 11. Tests (estándar NestJS)
 
@@ -160,6 +166,9 @@ Un agente **nunca**:
 6. Hace que la API dependa de Redis.
 7. Deja un endpoint sin `JwtAuthGuard` (salvo `login`, `refresh` y `health`).
 8. Usa npm o yarn, o hace commit de `dist/`, `node_modules/`, `.env` o `.env.local`.
+9. Abre CORS (`*`, `origin: true` o reflejar el origen) o habilita `credentials`.
+10. Deja el monitor sin `MonitorSessionGuard`, lo marca `@Public()` o muestra en él secretos, SQL, errores crudos o datos de negocio.
+11. Importa `modules/` desde `common/`, o un módulo o cliente desde otro.
 
 ## 14. Convenciones
 
@@ -196,9 +205,10 @@ Ante ambigüedad de negocio o datos, **pregunta**. No inventes columnas, tablas 
 | Crear un endpoint | `harness/playbooks/new-endpoint.md` |
 | Crear un módulo o cliente | `harness/playbooks/new-module.md` |
 | Agregar una conexión de BD | `harness/playbooks/add-database.md` |
+| Agregar un widget al monitor | `harness/playbooks/new-monitor-widget.md` |
 | Revisar un cambio | `harness/playbooks/review.md` |
 | Variables de entorno | `harness/reference/configuracion.md` |
-| Envelope, errores, auth, health | `harness/reference/contrato-http.md` |
+| Envelope, errores, auth, CORS, health, monitor | `harness/reference/contrato-http.md` |
 | Registrar una decisión | `harness/decisiones/README.md` |
 
 ## 17. Decisiones (base inmutable)

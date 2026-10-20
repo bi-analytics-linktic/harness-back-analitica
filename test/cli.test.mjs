@@ -250,6 +250,151 @@ describe('init.sh: advertencias por defecto', () => {
   });
 });
 
+/** Escribe archivos relativos al repo. */
+function writeFiles(repo, files) {
+  for (const [rel, text] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true });
+    fs.writeFileSync(path.join(repo, rel), text);
+  }
+}
+const issueIds = (report) => report.issues.map((i) => i.id);
+const issuesOf = (report, id) => report.issues.filter((i) => i.id === id);
+
+/** Endpoint completo del patrón §5, con sus specs. */
+function endpointFiles(base, e) {
+  const files = {};
+  for (const suffix of ['.controller', '.service', '.repository', '.sql', '.columns', '-query.dto', '-filters.dto', '.entity']) {
+    files[`${base}/${e}${suffix}.ts`] = 'export {};\n';
+  }
+  for (const suffix of ['.controller', '.service', '.repository', '.sql', '-query.dto']) {
+    files[`${base}/${e}${suffix}.spec.ts`] = 'export {};\n';
+  }
+  return files;
+}
+
+describe('init.sh: CORS, fronteras y monitor', () => {
+  it('un proyecto existente sin CORS ni fronteras solo recibe advertencias', () => {
+    const repo = legacyProject();
+    run(repo, ['init']);
+    writeFiles(repo, { 'eslint.config.mjs': 'export default [];\n' });
+    const { status, report } = initJson(repo, ['--quick']);
+    assert.equal(status, 0);
+    for (const id of ['security.cors-env', 'security.cors', 'architecture.eslint-boundaries']) {
+      assert.equal(issuesOf(report, id)[0]?.level, 'warning', id);
+    }
+    assert.ok(!issueIds(report).some((id) => id.startsWith('security.monitor')), 'sin src/common/monitor no se verifica el monitor');
+  });
+
+  it('detecta CORS abierto en main.ts y comodines en CORS_ORIGINS', () => {
+    const repo = legacyProject();
+    run(repo, ['init']);
+    writeFiles(repo, {
+      'src/main.ts': 'app.enableCors();\n',
+      '.env.example': 'PORT=3000\nCORS_ORIGINS=*\n',
+    });
+    const { report } = initJson(repo, ['--quick']);
+    assert.equal(issuesOf(report, 'security.cors-open').length, 2);
+    assert.ok(!issueIds(report).includes('security.cors-env'));
+
+    writeFiles(repo, {
+      'src/main.ts': 'app.enableCors(buildCorsOptions(origins, maxAge));\n',
+      '.env.example': 'PORT=3000\nCORS_ORIGINS=https://app.example.com\n',
+    });
+    const ok = initJson(repo, ['--quick']).report;
+    assert.ok(!issueIds(ok).some((id) => id.startsWith('security.cors')), JSON.stringify(issueIds(ok)));
+  });
+
+  it('detecta imports entre módulos y clientes, y de common a modules', () => {
+    const repo = legacyProject();
+    run(repo, ['init']);
+    writeFiles(repo, {
+      'src/common/cache/cache.service.ts': "import { X } from '../../modules/cliente/cartera/cartera.module';\n",
+      'src/modules/cliente/recaudo/recaudo.module.ts':
+        "import { CarteraModule } from '../cartera/cartera.module';\nimport { V } from 'src/modules/otro/ventas/ventas.module';\nimport { C } from '../../../common/cache/cache.service';\n",
+      'src/modules/cliente/recaudo/recaudo.constants.ts': "import { R } from './recaudo.module';\n",
+    });
+    const { report } = initJson(repo, ['--quick']);
+    assert.match(issuesOf(report, 'architecture.common-imports-modules')[0].message, /src\/common\/cache\/cache\.service\.ts/);
+    const crossed = issuesOf(report, 'architecture.module-imports')[0].message;
+    assert.match(crossed, /\.\.\/cartera\/cartera\.module/);
+    assert.match(crossed, /src\/modules\/otro\/ventas\/ventas\.module/);
+    assert.doesNotMatch(crossed, /common\/cache|recaudo\.module'/);
+  });
+
+  it('verifica la regla de agrupación y los archivos y specs de cada endpoint', () => {
+    const repo = legacyProject();
+    run(repo, ['init']);
+    const base = 'src/modules/cliente/cartera';
+    writeFiles(repo, {
+      ...endpointFiles(`${base}/resumen`, 'resumen'),
+      ...endpointFiles(`${base}/services-ok/services`, 'x'),
+      [`${base}/detalle/detalle.controller.ts`]: 'export {};\n',
+      [`${base}/detalle/detalle.service.ts`]: 'export {};\n',
+      [`${base}/plano/a.service.ts`]: 'export {};\n',
+      [`${base}/plano/b.service.ts`]: 'export {};\n',
+      [`${base}/plano/c.service.ts`]: 'export {};\n',
+    });
+    const { report } = initJson(repo, ['--quick']);
+    const grouping = issuesOf(report, 'architecture.grouping');
+    assert.equal(grouping.length, 1, JSON.stringify(grouping));
+    assert.match(grouping[0].message, /plano\/: 3 archivos service; agrúpalos en services\//);
+
+    const endpoints = issuesOf(report, 'architecture.endpoint-files');
+    assert.equal(endpoints.length, 1, 'resumen está completo; solo falla detalle');
+    assert.match(endpoints[0].message, /Endpoint detalle .*detalle\.controller\.spec\.ts.*detalle\.repository\.ts/);
+  });
+
+  it('detecta SQL fuera de *.sql.ts en sus formas habituales sin falsos positivos', () => {
+    const repo = legacyProject();
+    run(repo, ['init']);
+    const clean = {
+      'src/modules/cliente/cartera/op.enum.ts': "export enum Op {\n  SELECT = 'select',\n  WITH = 'with',\n}\n",
+      'src/modules/cliente/cartera/http.ts': "export const methods = ['GET', 'DELETE'];\n// SELECT a FROM t\n",
+      'src/modules/cliente/cartera/resumen/resumen.sql.ts': 'export const q = `\n  SELECT a FROM t`;\n',
+    };
+    writeFiles(repo, clean);
+    assert.ok(!issueIds(initJson(repo, ['--quick']).report).includes('sql.outside'));
+
+    for (const [name, text] of Object.entries({
+      multiline: 'export const q = `\n  SELECT a\n  FROM t`;\n',
+      paren: "export const q = '(SELECT 1)';\n",
+      write: "export const q = 'DELETE FROM t WHERE a = $1';\n",
+      update: 'export const q = "UPDATE t SET a = 1";\n',
+    })) {
+      writeFiles(repo, { 'src/modules/cliente/cartera/leak.ts': text });
+      const sql = issuesOf(initJson(repo, ['--quick']).report, 'sql.outside');
+      assert.equal(sql.length, 1, name);
+      assert.match(sql[0].message, /leak\.ts/, name);
+    }
+  });
+
+  it('con src/common/monitor exige su guard y sus variables', () => {
+    const repo = legacyProject();
+    run(repo, ['init']);
+    writeFiles(repo, {
+      'src/common/monitor/monitor.controller.ts': "@Public()\n@Controller('monitor')\nexport class MonitorController {}\n",
+    });
+    let { report } = initJson(repo, ['--quick']);
+    assert.equal(issuesOf(report, 'security.monitor-guard').length, 1);
+    assert.equal(issuesOf(report, 'security.monitor-env').length, 2);
+
+    writeFiles(repo, {
+      'src/common/monitor/monitor.controller.ts':
+        "// No es @Public(): lo protege MonitorSessionGuard.\n@UseGuards(MonitorSessionGuard)\n@Controller('monitor')\nexport class MonitorController {}\n",
+      '.env.example': 'PORT=3000\nMONITOR_ENABLED=false\nMONITOR_SESSION_EXPIRES_IN=15m\n',
+    });
+    ({ report } = initJson(repo, ['--quick']));
+    assert.ok(!issueIds(report).some((id) => id.startsWith('security.monitor')), JSON.stringify(issueIds(report)));
+
+    writeFiles(repo, {
+      'src/common/monitor/monitor.controller.ts':
+        "@Public()\n@UseGuards(MonitorSessionGuard)\n@Controller('monitor')\nexport class MonitorController {}\n",
+    });
+    ({ report } = initJson(repo, ['--quick']));
+    assert.match(issuesOf(report, 'security.monitor-guard')[0].message, /@Public\(\)/);
+  });
+});
+
 describe('actualización segura de proyectos instalados', () => {
   it('compatibilidad: sync no toca archivos del proyecto, init.sh sigue en 0 y rollback restaura la base', () => {
     const repo = legacyProject();

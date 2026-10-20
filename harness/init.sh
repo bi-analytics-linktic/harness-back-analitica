@@ -378,6 +378,12 @@ else
              JWT_REFRESH_SECRET JWT_REFRESH_EXPIRES_IN CACHE_ENABLED REDIS_URL; do
       grep -q "^$k=" .env.example || issue structure.env-example ".env.example no define $k"
     done
+    grep -q '^CORS_ORIGINS=' .env.example || issue security.cors-env ".env.example no define CORS_ORIGINS (allowlist de orígenes, AGENTS.md §9)"
+    if [ -d src/common/monitor ]; then
+      for k in MONITOR_ENABLED MONITOR_SESSION_EXPIRES_IN; do
+        grep -q "^$k=" .env.example || issue security.monitor-env ".env.example no define $k (src/common/monitor existe)"
+      done
+    fi
     dbs="$(grep -m1 '^DATABASES=' .env.example | cut -d= -f2 | tr ',' ' ')"
     for db in $dbs; do
       for part in HOST PORT NAME USER PASSWORD; do
@@ -390,7 +396,11 @@ else
   section "Reglas de SQL"
 
   if [ -d src ]; then
-    sql_out="$(grep -rlE --include='*.ts' "(^|[\`'\"])[[:space:]]*(SELECT|WITH)[[:space:]]" src 2>/dev/null \
+    # SQL al inicio de un literal o de una línea (consultas multilínea), también tras "(" y con escrituras.
+    # Se evitan falsos positivos de identificadores: SELECT = ..., WITH = ..., 'DELETE' (método HTTP).
+    sql_kw='SELECT([[:space:]]+[^=[:space:]]|[[:space:]]*$)|WITH[[:space:]]+(RECURSIVE[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*[[:space:]]*(\(|AS([[:space:]]|$))'
+    sql_kw="$sql_kw|INSERT[[:space:]]+INTO[[:space:]]|UPDATE[[:space:]]+[^[:space:]]+[[:space:]]+SET[[:space:]]|DELETE[[:space:]]+FROM[[:space:]]|MERGE[[:space:]]+INTO[[:space:]]"
+    sql_out="$(grep -rlE --include='*.ts' "(^|[\`'\"(])[[:space:]]*\(?[[:space:]]*($sql_kw)" src 2>/dev/null \
       | grep -vE '\.sql(\.spec)?\.ts$')"
     if [ -n "$sql_out" ]; then issue sql.outside "Texto SQL fuera de *.sql.ts: $(echo $sql_out)"
     else ok "SQL solo en *.sql.ts"; fi
@@ -398,6 +408,112 @@ else
     sql_write="$(grep -rliE --include='*.sql.ts' '(INSERT[[:space:]]+INTO|DELETE[[:space:]]+FROM|UPDATE[[:space:]]+[^[:space:]]+[[:space:]]+SET|TRUNCATE|(DROP|ALTER|CREATE)[[:space:]]+(TABLE|VIEW|INDEX|SCHEMA|DATABASE|FUNCTION|MATERIALIZED))' src 2>/dev/null)"
     if [ -n "$sql_write" ]; then issue sql.write "Escritura o DDL en SQL (la BD es de solo lectura): $(echo $sql_write)"
     else ok "Sin escrituras ni DDL"; fi
+  fi
+
+  # ───────────────────────────────────────────────────────────────────────────
+  section "Arquitectura"
+
+  if [ -f eslint.config.mjs ]; then
+    if [ -f eslint.boundaries.mjs ] && grep -q 'architectureBoundaries' eslint.config.mjs; then
+      ok "ESLint verifica las fronteras de arquitectura (eslint.boundaries.mjs)"
+    else
+      issue architecture.eslint-boundaries "eslint.config.mjs no aplica las fronteras: copia harness/skills/nest-base/templates/eslint.boundaries.mjs e impórtala (skill nest-base §4)"
+    fi
+  fi
+
+  if [ -d src ]; then
+    # Fronteras (AGENTS.md §4), por si el ESLint del proyecto aún no las tiene, y patrón por endpoint (§5).
+    arch="$(node -e '
+      const fs = require("fs"), path = require("path");
+      const walk = (dir) => fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+        const p = path.join(dir, e.name);
+        return e.isDirectory() ? [p + "/", ...walk(p)] : [p];
+      }) : [];
+      const out = (id, msg) => console.log(id + "\t" + msg);
+      const importsOf = (f) => [...fs.readFileSync(f, "utf8").matchAll(/(?:from|import|require\()\s*["\x27]([^"\x27]+)["\x27]/g)].map((m) => m[1]);
+
+      const common = walk("src/common").filter((f) => f.endsWith(".ts"));
+      const bad = common.filter((f) => importsOf(f).some((s) => /(^|\/)modules(\/|$)/.test(s)));
+      if (bad.length) out("architecture.common-imports-modules", "src/common importa de src/modules: " + bad.join(" "));
+
+      const TYPES = [
+        ["controller", /\.controller\.ts$/, "controllers"], ["service", /\.service\.ts$/, "services"],
+        ["repository", /\.repository\.ts$/, "repositories"], ["sql", /\.sql\.ts$/, "sql"],
+        ["columns", /\.columns\.ts$/, "columns"], ["dto", /\.dto\.ts$/, "dto"], ["entity", /\.entity\.ts$/, "entities"],
+      ];
+      const files = walk("src/modules").filter((f) => f.endsWith(".ts") && !f.endsWith(".spec.ts"));
+      const crossed = [];
+      for (const f of files) {
+        const [, client, mod] = f.split("/").slice(1);
+        for (const s of importsOf(f)) {
+          const target = s.startsWith(".") ? path.normalize(path.join(path.dirname(f), s)) : s;
+          const m = /^src\/modules\/([^/]+)(?:\/([^/]+))?/.exec(target);
+          if (m && (m[1] !== client || (m[2] && m[2] !== mod))) crossed.push(f + " → " + s);
+        }
+      }
+      if (crossed.length) out("architecture.module-imports", "Imports entre módulos o clientes: " + crossed.join(", "));
+
+      const byDir = new Map();
+      for (const f of files) { const d = path.dirname(f); byDir.set(d, [...(byDir.get(d) || []), path.basename(f)]); }
+      for (const [dir, names] of byDir) {
+        if (dir.split("/").length < 4) continue;
+        for (const [type, re, folder] of TYPES) {
+          const n = names.filter((x) => re.test(x)).length;
+          if (n > 2 && path.basename(dir) !== folder)
+            out("architecture.grouping", dir + "/: " + n + " archivos " + type + "; agrúpalos en " + folder + "/ (AGENTS.md §5)");
+        }
+      }
+
+      const SPEC = ["controller", "service", "repository", "sql", "query.dto"];
+      for (const ctrl of files.filter((f) => f.endsWith(".controller.ts"))) {
+        const parts = ctrl.split("/");
+        if (parts.length < 5) continue;
+        const root = parts.slice(0, 4).join("/");
+        const all = walk(root).filter((f) => f.endsWith(".ts"));
+        const e = path.basename(ctrl, ".controller.ts");
+        const want = [e + ".controller.ts", e + ".service.ts", e + ".repository.ts", e + ".sql.ts", e + ".columns.ts",
+          e + "-query.dto.ts", e + "-filters.dto.ts", e + ".entity.ts"];
+        const missing = [];
+        for (const name of want) {
+          const found = all.find((f) => path.basename(f) === name);
+          if (!found) { missing.push(name); continue; }
+          if (SPEC.some((t) => name.endsWith("." + t + ".ts") || name.endsWith("-" + t + ".ts")) &&
+              !fs.existsSync(found.replace(/\.ts$/, ".spec.ts"))) missing.push(name.replace(/\.ts$/, ".spec.ts"));
+        }
+        if (missing.length) out("architecture.endpoint-files", "Endpoint " + e + " (" + root + "): falta " + missing.join(", "));
+      }
+    ' 2>&1)"
+    arch_before=$((FAILS + WARNS))
+    while IFS="$(printf '\t')" read -r id msg; do
+      [ -n "$id" ] && issue "$id" "$msg"
+    done <<EOF
+$arch
+EOF
+    [ "$((FAILS + WARNS))" -eq "$arch_before" ] && ok "Fronteras, agrupación y patrón por endpoint (AGENTS.md §4 y §5)"
+  fi
+
+  # ───────────────────────────────────────────────────────────────────────────
+  section "Seguridad"
+
+  if [ -f src/main.ts ]; then
+    if grep -qE 'enableCors[[:space:]]*\([[:space:]]*\)|cors:[[:space:]]*true|origin:[[:space:]]*(true|["'"'"']\*["'"'"'])' src/main.ts; then
+      issue security.cors-open "src/main.ts abre CORS a cualquier origen: usa la allowlist de CORS_ORIGINS (contrato-http.md, CORS)"
+    elif grep -q 'enableCors' src/main.ts; then ok "CORS configurado en src/main.ts"
+    else issue security.cors "src/main.ts no configura CORS con la allowlist de CORS_ORIGINS (contrato-http.md, CORS)"; fi
+  fi
+  if [ -f .env.example ] && grep -E '^CORS_ORIGINS=' .env.example | grep -q '\*'; then
+    issue security.cors-open ".env.example: CORS_ORIGINS no admite comodines"
+  fi
+
+  if [ -d src/common/monitor ]; then
+    mon_ctrl="$(grep -rl --include='*.controller.ts' '@Controller' src/common/monitor 2>/dev/null)"
+    if [ -z "$mon_ctrl" ] || grep -L 'MonitorSessionGuard' $mon_ctrl | grep -q .; then
+      issue security.monitor-guard "El controller de src/common/monitor debe usar MonitorSessionGuard (AGENTS.md §10)"
+    elif grep -rqE '^[[:space:]]*@Public\(' src/common/monitor; then
+      issue security.monitor-guard "src/common/monitor no usa @Public(): lo protege MonitorSessionGuard (AGENTS.md §10)"
+    else
+      ok "Monitor protegido por MonitorSessionGuard"
+    fi
   fi
 
   # ───────────────────────────────────────────────────────────────────────────

@@ -35,5 +35,8 @@
     "codex",
     "nestjs"
   ],
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "eslint": "^9.39.5"
+  }
 }
