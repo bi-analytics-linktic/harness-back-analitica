@@ -32,7 +32,7 @@ Comprueba que:
 
 1. Mira el cambio real (`git diff`, `git status`, los archivos). **No confíes solo en el reporte.**
 2. Recorre el checklist de `harness/playbooks/review.md`.
-3. Verifica tú mismo: `pnpm lint:check`, `pnpm test` y `pnpm build`. Al final del ciclo de una tarea, ejecuta `./harness/init.sh`.
+3. Verifica tú mismo: `pnpm lint:check`, `pnpm test` y `pnpm build`. Al final del ciclo de una tarea, ejecuta `./harness/init.sh --json` y compáralo con la línea base registrada en `harness/progress.md`: una advertencia **nueva** causada por el cambio es `BLOQUEANTE`; las que ya existían no lo son.
 4. Contrasta el resultado con los criterios de aceptación del encargo.
 
 ## Reglas
@@ -53,7 +53,7 @@ Comprueba que:
 ```
 REVISIÓN DE: <plan | tarea X> · RONDA <n>
 VEREDICTO: APROBADO | CAMBIOS REQUERIDOS
-VERIFICACIÓN: lint <ok/falla> · test <ok/falla> · build <ok/falla> · init.sh <ok/falla/no ejecutado>
+VERIFICACIÓN: lint <ok/falla> · test <ok/falla> · build <ok/falla> · init.sh <exit 0 + N advertencias (M nuevas) / exit 1 / no ejecutado>
 HALLAZGOS:
   1. [BLOQUEANTE] src/...:42 — <problema> — regla: AGENTS.md §6 — cómo verificar: <...>
   2. [MENOR] ...

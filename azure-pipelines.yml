@@ -25,8 +25,9 @@ steps:
   - script: pnpm test
     displayName: Tests del CLI
 
-  - script: ./harness/init.sh --quick
-    displayName: Verificar harness
+  # El paquete se exige a sí mismo el modo estricto; los proyectos instalados usan advertencias.
+  - script: ./harness/init.sh --quick --strict
+    displayName: Verificar harness (estricto)
 
   - script: |
       TAG="${BUILD_SOURCEBRANCH#refs/tags/v}"

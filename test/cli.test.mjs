@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -141,6 +142,171 @@ describe('arness sync', () => {
     assert.match(read(repo, 'harness/playbooks/review.md'), /nuevo check/);
     assert.ok(fs.existsSync(path.join(repo, 'harness/decisiones/0001-usar-zod.md')), 'sync no toca decisiones');
     assert.equal(manifest(repo).version, '1.1.0');
+  });
+});
+
+const initSh = (repo, args = []) =>
+  spawnSync('bash', ['harness/init.sh', ...args], { cwd: repo, encoding: 'utf8' });
+const initJson = (repo, args = []) => {
+  const res = initSh(repo, ['--json', ...args]);
+  return { status: res.status, report: JSON.parse(res.stdout) };
+};
+const git = (repo, ...args) => spawnSync('git', args, { cwd: repo, encoding: 'utf8' });
+
+/** Proyecto existente mínimo: no cumple todas las reglas, pero "funciona" (como los backends con v0.1.0). */
+function legacyProject() {
+  const repo = newRepo();
+  const files = {
+    'package.json': JSON.stringify({ name: 'mi-backend', version: '1.0.0', scripts: { build: 'nest build' } }),
+    'src/main.ts': 'bootstrap();\n',
+    'src/modules/cliente/cartera/cartera.module.ts': 'export class CarteraModule {}\n',
+    '.env.example': 'PORT=3000\n',
+    Dockerfile: 'FROM node:24-alpine\n',
+    '.gitignore': 'node_modules/\n.env\nharness/progress.md\n',
+  };
+  for (const [rel, text] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true });
+    fs.writeFileSync(path.join(repo, rel), text);
+  }
+  return repo;
+}
+
+/** sha256 de cada archivo del repo, salvo los que gestiona el harness. */
+function projectHashes(repo) {
+  const managed = new Set(Object.keys(manifest(repo).files));
+  const out = {};
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, e.name);
+      const rel = path.relative(repo, abs);
+      if (e.isSymbolicLink() || rel === '.git' || rel.startsWith('harness/')) continue;
+      if (e.isDirectory()) walk(abs);
+      else if (!managed.has(rel)) out[rel] = createHash('sha256').update(fs.readFileSync(abs)).digest('hex');
+    }
+  };
+  walk(repo);
+  return out;
+}
+
+describe('init.sh: advertencias por defecto', () => {
+  it('en un proyecto que no cumple todo, advierte y termina en 0; con --strict termina en 1', () => {
+    const repo = legacyProject();
+    run(repo, ['init']);
+    const res = initSh(repo, ['--no-health']);
+    assert.equal(res.status, 0, res.stdout);
+    assert.match(res.stdout, /Proyecto operativo con \d+ advertencia/);
+    assert.match(res.stdout, /Resumen por categoría/);
+    assert.equal(initSh(repo, ['--strict', '--no-health']).status, 1);
+  });
+
+  it('--json devuelve los hallazgos con id, nivel y categoría', () => {
+    const repo = legacyProject();
+    run(repo, ['init']);
+    const { status, report } = initJson(repo, ['--no-health']);
+    assert.equal(status, 0);
+    assert.equal(report.mode, 'default');
+    assert.equal(report.summary.failures, 0);
+    const nvmrc = report.issues.find((i) => i.id === 'toolchain.nvmrc');
+    assert.equal(nvmrc.level, 'warning');
+    assert.equal(nvmrc.section, 'Toolchain');
+  });
+
+  it('.env versionado en git es crítico aunque no haya --strict, y no se puede silenciar', () => {
+    const repo = legacyProject();
+    run(repo, ['init']);
+    git(repo, 'init', '-q');
+    fs.writeFileSync(path.join(repo, '.env'), 'ACCESS_TOKEN=x\n');
+    git(repo, 'add', '-f', '.env');
+    fs.writeFileSync(path.join(repo, 'harness/arness.config.json'), JSON.stringify({ ignore: { 'git.env-tracked': 'no' } }));
+    const { status, report } = initJson(repo, ['--quick']);
+    assert.equal(status, 1);
+    assert.equal(report.summary.critical, 1);
+    assert.equal(report.issues.find((i) => i.id === 'git.env-tracked').level, 'critical');
+  });
+
+  it('harness/arness.config.json permite strict, silenciar con motivo y marcar chequeos como obligatorios', () => {
+    const repo = legacyProject();
+    run(repo, ['init']);
+    const cfg = (c) => fs.writeFileSync(path.join(repo, 'harness/arness.config.json'), JSON.stringify(c));
+
+    cfg({ ignore: { 'toolchain.nvmrc': 'Proyecto fijado por la plataforma' } });
+    let { status, report } = initJson(repo, ['--quick']);
+    assert.equal(status, 0);
+    assert.equal(report.issues.find((i) => i.id === 'toolchain.nvmrc').level, 'ignored');
+
+    cfg({ required: ['toolchain.nvmrc'] });
+    ({ status, report } = initJson(repo, ['--quick']));
+    assert.equal(status, 1);
+    assert.deepEqual(report.issues.filter((i) => i.level === 'failure').map((i) => i.id), ['toolchain.nvmrc']);
+
+    cfg({ strict: true });
+    ({ status, report } = initJson(repo, ['--quick']));
+    assert.equal(status, 1);
+    assert.equal(report.mode, 'strict');
+
+    cfg({ ignore: { 'toolchain.nvmrc': '' } });
+    ({ report } = initJson(repo, ['--quick']));
+    assert.ok(report.issues.some((i) => i.id === 'config.invalid'), 'un ignore sin motivo se reporta');
+  });
+});
+
+describe('actualización segura de proyectos instalados', () => {
+  it('compatibilidad: sync no toca archivos del proyecto, init.sh sigue en 0 y rollback restaura la base', () => {
+    const repo = legacyProject();
+    const v1 = packageCopy('0.1.0', (dir) => fs.writeFileSync(path.join(dir, 'harness/playbooks/viejo.md'), 'x\n'));
+    assert.equal(run(repo, ['init'], v1).status, 0);
+    assert.equal(run(repo, ['decision', 'new', 'Usar réplica'], v1).status, 0);
+    const before = projectHashes(repo);
+    const baseBefore = manifest(repo).files;
+
+    const res = run(repo, ['sync']);
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /arness rollback/);
+    assert.deepEqual(projectHashes(repo), before, 'sync solo escribe archivos de la base');
+    assert.equal(initSh(repo, ['--no-health']).status, 0);
+    assert.equal(fs.readFileSync(path.join(repo, 'harness/.arness-backup/.gitignore'), 'utf8'), '*\n');
+
+    const rb = run(repo, ['rollback']);
+    assert.equal(rb.status, 0, rb.stderr);
+    assert.equal(manifest(repo).version, '0.1.0');
+    assert.deepEqual(manifest(repo).files, baseBefore);
+    assert.equal(run(repo, ['status', '--check'], v1).status, 0, 'la base restaurada coincide con su manifiesto');
+    assert.deepEqual(projectHashes(repo), before, 'rollback tampoco toca el proyecto');
+    assert.ok(fs.existsSync(path.join(repo, 'harness/decisiones/0001-usar-replica.md')));
+  });
+
+  it('sync --dry-run --diff muestra el diff sin escribir; rollback sin respaldos falla con mensaje claro', () => {
+    const repo = newRepo();
+    const v1 = packageCopy('0.1.0');
+    const v2 = packageCopy('0.2.0', (dir) => fs.appendFileSync(path.join(dir, 'harness/playbooks/review.md'), '\n- [ ] check nuevo\n'));
+    run(repo, ['init'], v1);
+    const rb = run(repo, ['rollback'], v1);
+    assert.equal(rb.status, 1);
+    assert.match(rb.stderr, /No hay respaldos/);
+
+    const dry = run(repo, ['sync', '--dry-run', '--diff'], v2);
+    assert.equal(dry.status, 0, dry.stderr);
+    assert.match(dry.stdout, /\+- \[ \] check nuevo/);
+    assert.doesNotMatch(read(repo, 'harness/playbooks/review.md'), /check nuevo/);
+  });
+
+  it('sync sin cambios no crea respaldo', () => {
+    const repo = newRepo();
+    run(repo, ['init']);
+    assert.equal(run(repo, ['sync']).status, 0);
+    assert.ok(!fs.existsSync(path.join(repo, 'harness/.arness-backup')));
+  });
+
+  it('doctor lista lo que falta sin modificar nada', () => {
+    const repo = legacyProject();
+    run(repo, ['init']);
+    const before = projectHashes(repo);
+    const res = run(repo, ['doctor']);
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /Advertencias: \d+/);
+    assert.match(res.stdout, /\[toolchain\.nvmrc\]/);
+    assert.match(res.stdout, /No se modificó ningún archivo/);
+    assert.deepEqual(projectHashes(repo), before);
   });
 });
 

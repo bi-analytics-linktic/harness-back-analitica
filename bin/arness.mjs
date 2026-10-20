@@ -4,6 +4,7 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -14,8 +15,13 @@ const INSTALL_SPEC = `${PKG.repository.url}#v${PKG.version}`;
 
 const H = 'harness';
 const MANIFEST = `${H}/.arness.json`;
+const CONFIG = `${H}/arness.config.json`;
+// Respaldo de la versión anterior antes de cada sync; se ignora a sí mismo en git.
+const BACKUP_DIR = `${H}/.arness-backup`;
+const BACKUPS_KEPT = 3;
+const MANIFEST_SCHEMA = 1;
 // Del repo instalador: el paquete los crea una sola vez y sync nunca los toca.
-const OWNED_PREFIXES = [`${H}/decisiones/`, `${H}/progress.md`, MANIFEST];
+const OWNED_PREFIXES = [`${H}/decisiones/`, `${H}/progress.md`, MANIFEST, CONFIG, `${BACKUP_DIR}/`];
 const DECISION_SKELETON = [`${H}/decisiones/README.md`, `${H}/decisiones/_plantilla.md`];
 
 // Puentes de la raíz: cada herramienta busca en rutas fijas (ADR 0002).
@@ -81,14 +87,20 @@ function packageFiles() {
   return files;
 }
 
-function readManifest(root) {
-  const abs = path.join(root, MANIFEST);
+/** Lleva un manifiesto de cualquier versión anterior al formato actual (idempotente). */
+function migrateManifest(raw) {
+  return { ...raw, schema: MANIFEST_SCHEMA, files: raw.files ?? {}, links: raw.links ?? {} };
+}
+
+function readManifest(root, rel = MANIFEST) {
+  const abs = path.join(root, rel);
   if (!fs.existsSync(abs)) return null;
-  return JSON.parse(fs.readFileSync(abs, 'utf8'));
+  return migrateManifest(JSON.parse(fs.readFileSync(abs, 'utf8')));
 }
 
 function writeManifest(root, files, links) {
   const manifest = {
+    schema: MANIFEST_SCHEMA,
     package: PKG.name,
     version: PKG.version,
     files: Object.fromEntries([...files].map(([rel, f]) => [rel, sha256(f.content)]).sort()),
@@ -172,6 +184,50 @@ function ensureGitignore(root) {
   const sep = current && !current.endsWith('\n') ? '\n' : '';
   fs.writeFileSync(abs, `${current}${sep}${line}\n`);
   return true;
+}
+
+/** Copia la base instalada (archivos del manifiesto + manifiesto) antes de sobrescribirla. */
+function backupBase(root, manifest) {
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '');
+  const dir = path.join(root, BACKUP_DIR, `${stamp}-v${manifest.version}`);
+  for (const rel of [...Object.keys(manifest.files), MANIFEST]) {
+    const src = path.join(root, rel);
+    if (!fs.existsSync(src)) continue;
+    fs.mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true });
+    fs.copyFileSync(src, path.join(dir, rel));
+    fs.chmodSync(path.join(dir, rel), fs.statSync(src).mode & 0o777);
+  }
+  fs.writeFileSync(path.join(root, BACKUP_DIR, '.gitignore'), '*\n');
+  const all = listBackups(root);
+  for (const old of all.slice(0, Math.max(0, all.length - BACKUPS_KEPT))) {
+    fs.rmSync(path.join(root, BACKUP_DIR, old), { recursive: true, force: true });
+  }
+  return path.relative(root, dir);
+}
+
+/** Respaldos disponibles, del más antiguo al más reciente. */
+function listBackups(root) {
+  const abs = path.join(root, BACKUP_DIR);
+  if (!fs.existsSync(abs)) return [];
+  return fs
+    .readdirSync(abs, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && fs.existsSync(path.join(abs, e.name, MANIFEST)))
+    .map((e) => e.name)
+    .sort();
+}
+
+/** Diff unificado entre lo instalado y lo nuevo (requiere git; si no está, se omite). */
+function showDiff(root, rel, next) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'arness-diff-'));
+  const nextPath = path.join(tmp, path.basename(rel));
+  fs.writeFileSync(nextPath, next ?? '');
+  const current = path.join(root, rel);
+  const res = spawnSync('git', ['diff', '--no-index', '--no-color', '--', fs.existsSync(current) ? current : '/dev/null', nextPath], {
+    encoding: 'utf8',
+  });
+  fs.rmSync(tmp, { recursive: true, force: true });
+  if (res.error) return log(`  (sin git: no se puede mostrar el diff de ${rel})`);
+  log(res.stdout.replaceAll(nextPath, `(nuevo) ${rel}`).replaceAll(current, rel).trimEnd());
 }
 
 /** Compara lo instalado con el manifiesto: archivos editados a mano o faltantes. */
@@ -258,19 +314,125 @@ function cmdSync(opts) {
   for (const rel of added) log(`  + ${rel}`);
   for (const rel of updated) log(`  ~ ${rel}`);
   for (const rel of removed) log(`  - ${rel}`);
+  if (opts.diff) {
+    for (const rel of [...added, ...updated]) showDiff(root, rel, next.get(rel).content);
+    for (const rel of removed) showDiff(root, rel, null);
+  }
   if (opts.dryRun) {
-    log('\n(--dry-run: no se escribió nada)');
+    log('\n(--dry-run: no se escribió nada. Usa --diff para ver los cambios línea a línea)');
     return;
   }
 
+  // Solo se respalda si hay archivos que escribir; los enlaces y el manifiesto se reparan siempre.
+  const changes = added.length + updated.length + removed.length > 0 || manifest.version !== PKG.version;
+  const backup = changes ? backupBase(root, manifest) : null;
   for (const rel of [...added, ...updated]) writeFile(root, rel, next.get(rel));
   for (const rel of removed) fs.rmSync(path.join(root, rel), { force: true });
   ensureDecisionSkeleton(root);
   const links = createLinks(root, manifest.links ?? {}, { forceCopy: opts.copy });
   writeManifest(root, next, links);
-  ensureGitignore(root);
-  log('\n✔ Harness sincronizado. harness/decisiones/ y harness/progress.md no se tocaron.');
-  log('  Revisa el CHANGELOG del paquete y ejecuta ./harness/init.sh');
+  log('\n✔ Harness sincronizado. Solo se escribieron archivos de la base (harness/ y puentes);');
+  log('  el código del proyecto, harness/decisiones/ y harness/progress.md no se tocaron.');
+  if (backup) log(`  Respaldo de la versión anterior: ${backup} (para volver: arness rollback)`);
+  log('  Revisa la sección "Para proyectos existentes" del CHANGELOG y ejecuta: arness doctor');
+}
+
+function cmdRollback(opts) {
+  const root = findRoot();
+  const current = readManifest(root);
+  const backups = listBackups(root);
+  if (!backups.length) throw new CliError('No hay respaldos en harness/.arness-backup/: nada que restaurar.');
+  const name = backups.at(-1);
+  const dir = path.join(root, BACKUP_DIR, name);
+  const previous = readManifest(dir);
+
+  const { modified } = integrity(root, current);
+  if (modified.length && !opts.force) {
+    throw new CliError(
+      `Archivos de la base editados a mano desde el último sync:\n${list(modified)}\n` +
+        'rollback los sobrescribiría. Para continuar de todos modos: arness rollback --force',
+    );
+  }
+
+  const restored = Object.keys(previous.files);
+  const removed = Object.keys(current.files).filter((rel) => !(rel in previous.files));
+  log(`${PKG.name}: ${current.version} → ${previous.version} (respaldo ${name})`);
+  log(`  restaurados: ${restored.length} · eliminados: ${removed.length}`);
+  for (const rel of removed) log(`  - ${rel}`);
+  if (opts.dryRun) {
+    log('\n(--dry-run: no se escribió nada)');
+    return;
+  }
+
+  for (const rel of removed) fs.rmSync(path.join(root, rel), { force: true });
+  for (const rel of [...restored, MANIFEST]) {
+    const src = path.join(dir, rel);
+    if (!fs.existsSync(src)) continue;
+    writeFile(root, rel, { content: fs.readFileSync(src), mode: fs.statSync(src).mode & 0o777 });
+  }
+  const wantsCopy = Object.values(previous.links).includes('copy');
+  createLinks(root, current.links, { forceCopy: wantsCopy });
+  fs.rmSync(dir, { recursive: true, force: true });
+  log(`\n✔ Base restaurada a ${previous.version}. El código del proyecto y harness/decisiones/ no se tocaron.`);
+  log('  Recuerda volver a fijar ese tag en la devDependency si la cambiaste.');
+}
+
+// Dónde mirar para resolver cada categoría de hallazgo de init.sh.
+const DOCTOR_HINTS = {
+  config: 'Revisa harness/arness.config.json (JSON válido; cada ignore lleva motivo).',
+  harness: 'Restaura la base con arness sync (o arness sync --force si se editó a mano).',
+  decisions: 'Sigue harness/decisiones/README.md.',
+  progress: 'El líder lo reinicia desde harness/reference/progress-plantilla.md.',
+  git: 'Usa un repo git propio; si hay secretos versionados, sácalos del índice (git rm --cached) y rota las credenciales.',
+  package: 'Repo fuente del paquete: revisa bin/, CHANGELOG.md y docs/adr/.',
+  install: 'Instala o actualiza el paquete (README de @linktic/arness-back) y ejecuta arness sync.',
+  toolchain: 'Skill nest-base §1 y §4: .nvmrc, packageManager, lockfile y scripts.',
+  structure: 'AGENTS.md §4 y skill nest-base §4–§5. Adóptalo cuando convenga; no bloquea.',
+  sql: 'AGENTS.md §6: SQL solo en *.sql.ts y sin escrituras.',
+  quality: 'pnpm install, pnpm lint, pnpm build, pnpm test.',
+  health: 'harness/reference/contrato-http.md (Health) y la conexión a cada BD.',
+};
+
+function cmdDoctor(opts) {
+  const root = findRoot();
+  const manifest = readManifest(root);
+  const { modified, missing } = integrity(root, manifest);
+  const args = ['--json', ...(opts.full ? [] : ['--quick', '--no-health'])];
+  const res = spawnSync('bash', [path.join(root, H, 'init.sh'), ...args], { cwd: root, encoding: 'utf8' });
+  let report;
+  try {
+    report = JSON.parse(res.stdout);
+  } catch {
+    throw new CliError(`init.sh no devolvió JSON válido (¿versión anterior de la base?).\n${res.stderr.slice(-2000)}`);
+  }
+
+  log(`Harness ${manifest.package}@${manifest.version} · paquete disponible ${PKG.version}`);
+  if (modified.length || missing.length) log(`  ⚠ Base distinta al manifiesto: ${modified.length} editados, ${missing.length} faltantes`);
+  log(`Revisión ${opts.full ? 'completa' : 'rápida (usa --full para lint, build, tests y health)'} · modo ${report.mode}`);
+
+  const levels = [
+    ['critical', '✖ Críticos (bloquean)'],
+    ['failure', '✖ Obligatorios (strict o required)'],
+    ['warning', '⚠ Advertencias'],
+  ];
+  for (const [level, title] of levels) {
+    const items = report.issues.filter((i) => i.level === level);
+    if (!items.length) continue;
+    log(`\n${title}: ${items.length}`);
+    const byCat = new Map();
+    for (const i of items) {
+      const cat = (i.id ?? 'otros').split('.')[0];
+      byCat.set(cat, [...(byCat.get(cat) ?? []), i]);
+    }
+    for (const [cat, group] of byCat) {
+      log(`  ${cat}${DOCTOR_HINTS[cat] ? ` — ${DOCTOR_HINTS[cat]}` : ''}`);
+      for (const i of group) log(`    - ${i.message}${i.id ? ` [${i.id}]` : ''}`);
+    }
+  }
+  if (report.summary.ignored) log(`\n· ${report.summary.ignored} chequeo(s) silenciado(s) en ${CONFIG}`);
+  if (!report.issues.some((i) => i.level !== 'ignored')) log('\n✔ Sin hallazgos: el proyecto cumple la versión instalada.');
+  log('\nNo se modificó ningún archivo.');
+  if (report.summary.critical) process.exitCode = 1;
 }
 
 function cmdStatus(opts) {
@@ -341,13 +503,17 @@ const HELP = `arness — harness de agentes IA para backends NestJS (${PKG.name}
 
 Uso:
   arness init [--dir <ruta>] [--force] [--copy]   Instala el harness en el repo
-  arness sync [--dry-run] [--force] [--copy]       Actualiza la base a la versión instalada del paquete
+  arness sync [--dry-run] [--diff] [--force] [--copy]
+                                                   Actualiza la base (respalda la versión anterior)
+  arness rollback [--dry-run] [--force]            Restaura la base desde el último respaldo
+  arness doctor [--full]                           Qué le falta al proyecto (solo lectura)
   arness status [--check]                          Versión instalada e integridad de la base
   arness verify [opciones de init.sh]              Ejecuta ./harness/init.sh
   arness decision new "<título>"                   Crea una decisión en harness/decisiones/
   arness --version | --help
 
-harness/decisiones/ y harness/progress.md pertenecen al repo: sync nunca los modifica.
+harness/decisiones/, harness/progress.md y harness/arness.config.json pertenecen al repo:
+sync y rollback nunca los modifican, ni tocan el código del proyecto.
 --copy crea copias en lugar de enlaces simbólicos (útil en Windows sin symlinks).`;
 
 function parseFlags(argv) {
@@ -359,6 +525,8 @@ function parseFlags(argv) {
     else if (a === '--copy') opts.copy = true;
     else if (a === '--dry-run') opts.dryRun = true;
     else if (a === '--check') opts.check = true;
+    else if (a === '--diff') opts.diff = true;
+    else if (a === '--full') opts.full = true;
     else if (a.startsWith('--')) throw new CliError(`Opción desconocida: ${a}`);
     else opts._.push(a);
   }
@@ -372,6 +540,10 @@ function main(argv) {
       return cmdInit(parseFlags(rest));
     case 'sync':
       return cmdSync(parseFlags(rest));
+    case 'rollback':
+      return cmdRollback(parseFlags(rest));
+    case 'doctor':
+      return cmdDoctor(parseFlags(rest));
     case 'status':
       return cmdStatus(parseFlags(rest));
     case 'verify':

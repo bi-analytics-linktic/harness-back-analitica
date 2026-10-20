@@ -6,13 +6,16 @@ Fuente única de instrucciones para cualquier agente IA (Claude Code, Codex, Gem
 
 ## 0. Antes de empezar: `./harness/init.sh`
 
-Ejecuta `./harness/init.sh` **antes de cualquier cambio**. Verifica el harness, la estructura y el toolchain, las reglas de SQL, lint, formato, build, tests y `/health` (cada base de datos y la caché).
+Ejecuta `./harness/init.sh` **antes de cualquier cambio**. Revisa el harness, la estructura y el toolchain, las reglas de SQL, lint, formato, build, tests y `/health` (cada base de datos y la caché).
 
-- **Si falla (exit ≠ 0): no continúes.** Informa al usuario los fallos exactos (por ejemplo "la base REPORTS está caída") y espera instrucciones. No entres en ciclos de reintentos sobre un proyecto roto.
-- Si el usuario pide corregir lo que falló: **máximo 3 intentos**; después vuelve a informar.
-- Nunca modifiques `init.sh`, reglas de ESLint ni tests para que pasen.
-- Opciones: `--quick` (sin lint, build, tests ni health), `--e2e`, `--no-health` e `--install`.
-- Al terminar una tarea, `./harness/init.sh` debe pasar de nuevo.
+Por defecto **los hallazgos son advertencias** (`⚠`, exit 0): el proyecto sigue funcionando tal cual. Muchos backends adoptaron el harness con el código ya en producción y no cumplen todas las reglas nuevas.
+
+- **Advertencias (exit 0):** infórmalas al usuario en tu reporte y **continúa**. No las corrijas por tu cuenta si no son parte de la tarea, y **no introduzcas advertencias nuevas** con tu cambio.
+- **Fallo (exit 1): no continúes.** Ocurre ante un fallo **crítico** (hoy solo `.env` o `.env.local` versionado en git), con `--strict` o con un chequeo marcado como `required` en `harness/arness.config.json`. Informa los fallos exactos y espera instrucciones. No entres en ciclos de reintentos.
+- Si el usuario pide corregir algo: **máximo 3 intentos**; después vuelve a informar.
+- Nunca modifiques `init.sh`, reglas de ESLint ni tests, ni silencies chequeos en `harness/arness.config.json`, para que pasen. Silenciar un chequeo es decisión humana y lleva motivo.
+- Opciones: `--strict`, `--json` (salida para máquinas), `--quick` (sin lint, build, tests ni health), `--e2e`, `--no-health` e `--install`. `pnpm arness doctor` resume qué le falta al proyecto sin modificar nada.
+- Al terminar una tarea, `./harness/init.sh` debe terminar en 0 y sin advertencias nuevas respecto al inicio.
 
 ## 1. Qué es este proyecto
 
@@ -43,12 +46,13 @@ No es transaccional: no crea, modifica ni borra datos de negocio.
 ## 3. Comandos
 
 ```bash
-./harness/init.sh                  # verificación: SIEMPRE antes y después de trabajar
+./harness/init.sh                  # revisión: SIEMPRE antes y después de trabajar (--strict en CI)
 pnpm start:dev | pnpm build
 pnpm lint | pnpm lint:check        # --fix | sin corregir, 0 warnings
 pnpm format | pnpm format:check
 pnpm test | pnpm test:e2e | pnpm test:cov
 pnpm arness status | sync           # integridad y versión del harness | actualizar la base
+pnpm arness doctor | rollback       # qué le falta al proyecto (solo lectura) | volver a la base anterior
 pnpm arness decision new "<título>" # nueva decisión en harness/decisiones/
 ```
 
@@ -67,7 +71,7 @@ src/
 
 Raíz (proyecto NestJS): `postman/`, `FRONT.md`, `test/` (e2e), `.env.example`, `Dockerfile`, `azure-pipelines.yml`, `.nvmrc`, ESLint y Prettier.
 
-Harness (todo en `harness/`, separado del proyecto): `AGENTS.md`, `init.sh`, `agents/`, `skills/`, `playbooks/`, `reference/`, `decisiones/` y `progress.md` (estado de trabajo, no versionado). En la raíz solo quedan puentes: el enlace `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursor/rules/`, y los enlaces `.claude/agents`, `.claude/skills` y `.agents/skills`. El código del proyecto nunca vive en `harness/`, y `harness/` nunca entra al build, a los tests ni a la imagen Docker.
+Harness (todo en `harness/`, separado del proyecto): `AGENTS.md`, `init.sh`, `agents/`, `skills/`, `playbooks/`, `reference/`, `decisiones/`, `arness.config.json` (opcional, del repo) y `progress.md` (estado de trabajo, no versionado). En la raíz solo quedan puentes: el enlace `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursor/rules/`, y los enlaces `.claude/agents`, `.claude/skills` y `.agents/skills`. El código del proyecto nunca vive en `harness/`, y `harness/` nunca entra al build, a los tests ni a la imagen Docker.
 
 - El primer nivel de `src/modules/` es **siempre el cliente** (ej. `src/modules/fiduprevisora/`).
 - `common/` no importa de `modules/`. Los módulos no se importan entre sí; lo compartido va a `common/`.
@@ -176,7 +180,7 @@ Un agente **nunca**:
    - [ ] Postman, `FRONT.md` y README del módulo actualizados
    - [ ] Variables nuevas en `.env.example`, `.env.local` y `src/config/`
    - [ ] Decisión nueva registrada en `harness/decisiones/` (si aplica)
-   - [ ] `./harness/init.sh` en verde
+   - [ ] `./harness/init.sh` termina en 0 y sin advertencias nuevas
 4. **Reporta** qué cambió, qué se probó y qué quedó pendiente. No afirmes que algo funciona sin verificarlo.
 
 Ante ambigüedad de negocio o datos, **pregunta**. No inventes columnas, tablas ni reglas.
@@ -199,7 +203,7 @@ Ante ambigüedad de negocio o datos, **pregunta**. No inventes columnas, tablas 
 
 ## 17. Decisiones (base inmutable)
 
-La base del harness (todo `harness/` salvo `harness/decisiones/` y `harness/progress.md`, más los puentes de la raíz) **no se edita para reflejar decisiones del proyecto.** Cada decisión (dependencia, excepción, convención, regla por cliente, cambio de contrato) es un archivo en `harness/decisiones/`:
+La base del harness (todo `harness/` salvo `harness/decisiones/`, `harness/arness.config.json` y `harness/progress.md`, más los puentes de la raíz) **no se edita para reflejar decisiones del proyecto.** Cada decisión (dependencia, excepción, convención, regla por cliente, cambio de contrato) es un archivo en `harness/decisiones/`:
 - **Formato:** `harness/decisiones/NNNN-titulo-kebab.md`, desde `_plantilla.md`, y agregada al índice de `harness/decisiones/README.md`.
 - **Estados:** `Propuesta` → `Aceptada` → `Reemplazada por NNNN` | `Obsoleta`. Solo `Aceptada` es vinculante.
 - **Precedencia:** una decisión `Aceptada` prevalece sobre la base **solo dentro de su alcance**.

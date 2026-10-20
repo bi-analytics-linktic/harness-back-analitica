@@ -8,3 +8,4 @@ Decisiones de diseño **del paquete `@linktic/arness-back`**. No se instalan en 
 | [0002](0002-harness-en-carpeta-propia.md) | El harness vive en su propia carpeta `harness/` | Aceptada | 2026-09-25 |
 | [0003](0003-distribucion-como-paquete.md) | Distribuir el harness como paquete npm con CLI | Aceptada (canal de publicación modificado por 0004) | 2026-09-25 |
 | [0004](0004-instalacion-desde-git.md) | Instalar el paquete desde git, sin registro npm | Aceptada | 2026-09-25 |
+| [0005](0005-compatibilidad-con-proyectos-instalados.md) | Compatibilidad con proyectos instalados: init.sh por advertencias y actualización reversible | Aceptada | 2026-10-20 |

@@ -15,6 +15,8 @@
     "harness/",
     "!harness/progress.md",
     "!harness/.arness.json",
+    "!harness/arness.config.json",
+    "!harness/.arness-backup/",
     "!harness/decisiones/[0-9]*.md",
     "CHANGELOG.md"
   ],

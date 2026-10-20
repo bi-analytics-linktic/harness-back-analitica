@@ -13,7 +13,7 @@ Referencias: `AGENTS.md` §2 (stack y dependencias aprobadas), §4 (estructura),
 
 ## 0. Precondiciones: si alguna falla, detente e informa
 
-1. `./harness/init.sh` pasa. Sin `package.json` corre en modo "solo harness".
+1. `./harness/init.sh` termina en 0. Sin `package.json` corre en modo "solo harness".
 2. **No existe `package.json`.** Si existe, la base ya fue creada: no la regeneres; informa y termina.
 3. `pnpm` está disponible (`pnpm -v`). Nunca uses npm ni yarn.
 
@@ -66,7 +66,7 @@ pnpm add -D @types/pg
 
 - Sin versiones fijadas a mano: pnpm resuelve la última estable y el lockfile las congela.
 - Si pnpm avisa que ignoró scripts de build (`pnpm approve-builds`), muestra la lista al humano y espera su aprobación.
-- - Agrega el harness como devDependency desde git, con el tag de la versión del manifiesto (no hay registro npm):
+- Agrega el harness como devDependency desde git, con el tag de la versión del manifiesto (no hay registro npm):
   ```bash
   pnpm add -D "git+https://github.com/bi-analytics-linktic/harness-back.git#v$(node -p "require('./harness/.arness.json').version")"
   ```
@@ -139,10 +139,10 @@ Implementa cada pieza con su spec. Sin lógica de negocio y sin módulos de ejem
 
 ```bash
 pnpm lint && pnpm format
-./harness/init.sh
+./harness/init.sh --strict
 ```
 
-- `./harness/init.sh` debe terminar en verde, incluido `/health`. Si no hay PostgreSQL local disponible, el health informará las BDs caídas: repórtalo al humano y no lo "arregles" desactivando checks.
+- Un proyecto nuevo nace cumpliendo todo: `./harness/init.sh --strict` debe terminar en 0, incluido `/health`. Los proyectos existentes usan el modo por defecto (advertencias). Si no hay PostgreSQL local disponible, el health informará las BDs caídas: repórtalo al humano y no lo "arregles" desactivando checks.
 - Corrige solo fallos causados por archivos que esta skill creó. **Máximo 3 intentos de corrección.** Si sigue fallando, detente y reporta la salida de `init.sh`.
 - Nunca relajes reglas de ESLint, umbrales ni checks de `init.sh` para pasar.
 
