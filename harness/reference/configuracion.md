@@ -1,6 +1,6 @@
 # Referencia: variables de entorno
 
-Parte de la base del harness (AGENTS.md §6, §7 y §8). Todas las variables:
+Parte de la base del harness (AGENTS.md §6 a §10). Todas las variables:
 - se declaran en `.env.example` con valores de ejemplo y en `.env.local` con valores locales;
 - se validan en `src/config/` al arrancar.
 
@@ -52,3 +52,24 @@ JWT_ACCESS_EXPIRES_IN=15m
 JWT_REFRESH_SECRET=change-me-too # distinto de JWT_ACCESS_SECRET
 JWT_REFRESH_EXPIRES_IN=7d
 ```
+
+## CORS
+
+```dotenv
+CORS_ORIGINS=http://localhost:4200,https://reportes.example.com   # obligatoria; orígenes exactos separados por comas
+CORS_MAX_AGE_SECONDS=600                                           # opcional; caché del preflight (0–86400)
+```
+
+- `CORS_ORIGINS` es **obligatoria**: sin ella la app no arranca. No admite `*` ni comodines, solo orígenes (`esquema://host[:puerto]`, sin ruta), y exige `https://` salvo `localhost`, `127.0.0.1` y `[::1]`.
+- Cada entorno define su lista (desarrollo, QA, producción). `init.sh` verifica que `.env.example` la define y que no lleva `*`.
+
+## Monitor
+
+```dotenv
+MONITOR_ENABLED=false             # true para habilitar GET /monitor; con false responde 404
+MONITOR_SESSION_EXPIRES_IN=15m    # duración de la cookie de sesión del monitor
+```
+
+- Por defecto `false`. Habilítalo solo donde el equipo lo necesite; en producción requiere aprobación.
+- El login usa `ACCESS_TOKEN` y la sesión se firma con `JWT_ACCESS_SECRET`: no hay secretos nuevos.
+- Si existe `src/common/monitor/`, `init.sh` verifica que `.env.example` define ambas variables.

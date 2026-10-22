@@ -65,6 +65,8 @@ harness/
 ├── .arness.json        manifiesto: versión + hash de cada archivo gestionado
 ├── AGENTS.md, init.sh, agents/, skills/, playbooks/, reference/    ← del paquete (no editar)
 ├── decisiones/         ← del repo: se crea una vez y sync nunca la toca
+├── arness.config.json  ← del repo, opcional: strict / ignore / required de init.sh
+├── .arness-backup/     ← respaldos de sync para arness rollback (ignorados en git)
 └── progress.md         ← del repo, no versionado
 AGENTS.md → harness/AGENTS.md · CLAUDE.md · GEMINI.md · .cursor/rules/ · .claude/{agents,skills} · .agents/skills
 ```
@@ -73,9 +75,30 @@ AGENTS.md → harness/AGENTS.md · CLAUDE.md · GEMINI.md · .cursor/rules/ · .
 
 ```bash
 ./harness/init.sh                                   # o: pnpm arness verify
+pnpm arness doctor                                  # qué le falta al proyecto (no modifica nada)
 pnpm arness decision new "Usar réplica de lectura"  # nueva decisión en harness/decisiones/
 pnpm arness status                                  # versión instalada e integridad de la base
 ```
+
+### `init.sh`: advertencias por defecto
+
+Los hallazgos se muestran como advertencias (`⚠`) y el script termina en 0: el proyecto sigue funcionando. Al final aparece un resumen por categoría.
+
+- **Crítico (siempre exit 1):** `.env` o `.env.local` versionado en git.
+- `--strict`: los hallazgos fallan (exit 1). Recomendado en CI y en proyectos nuevos.
+- `--json`: resultado para agentes y pipelines (`{ mode, exitCode, summary, issues: [{ level, id, section, message }] }`).
+
+Configuración opcional del repo en `harness/arness.config.json` (sync no la toca):
+
+```json
+{
+  "strict": false,
+  "ignore": { "toolchain.nvmrc": "La versión de Node la fija la plataforma de despliegue" },
+  "required": ["sql.write"]
+}
+```
+
+`ignore` silencia un chequeo y exige un motivo. `required` hace que un chequeo falle aunque no haya `--strict`. Los ids aparecen entre corchetes en la salida de `init.sh`.
 
 ## Actualizar a una versión nueva
 
@@ -83,14 +106,18 @@ Al no haber registro, `pnpm up` no detecta versiones nuevas: se cambia el tag a 
 
 ```bash
 pnpm add -D "git+https://github.com/bi-analytics-linktic/harness-back.git#v0.2.0"
-pnpm arness sync --dry-run          # ver qué cambiaría
-pnpm arness sync                    # aplicar
+pnpm arness sync --dry-run --diff   # ver qué cambiaría, línea a línea
+pnpm arness sync                    # aplicar (respalda la versión anterior)
+pnpm arness doctor                  # qué conviene adoptar de la versión nueva
 ./harness/init.sh
 git add -A && git commit -m "chore(harness): update to v0.2.0"
 ```
 
+Actualizar **no rompe un proyecto que funciona**: las reglas nuevas aparecen como advertencias y cada versión trae una sección "Para proyectos existentes" en el CHANGELOG. Para volver atrás: `pnpm arness rollback`.
+
 `arness sync`:
-- solo escribe los archivos del manifiesto, y nunca toca `harness/decisiones/` ni `harness/progress.md`;
+- solo escribe los archivos del manifiesto (`harness/` y puentes). Nunca toca el código del proyecto (`src/`, `test/`, `package.json`, `.env*`, `.gitignore`, `Dockerfile`, pipelines), `harness/decisiones/`, `harness/arness.config.json` ni `harness/progress.md`;
+- antes de escribir guarda la base anterior en `harness/.arness-backup/` (los últimos 3, ignorados en git), que `arness rollback` restaura;
 - si alguien editó un archivo de la base, **se detiene**. Ese cambio debe registrarse como decisión del repo o proponerse a este paquete (`--force` sobrescribe);
 - con `--copy` crea copias en lugar de enlaces simbólicos, útil en Windows sin symlinks. `init` lo hace solo si no puede crear el enlace.
 

@@ -21,7 +21,8 @@ Recibes un **Encargo** del líder y lo implementas siguiendo `AGENTS.md`, el pla
 
 ## Reglas
 
-- Nunca: SQL fuera de `*.sql.ts` o con valores interpolados; escrituras o DDL; tocar `.env`; agregar dependencias; relajar ESLint, tests o `init.sh` (AGENTS.md §13).
+- Nunca: SQL fuera de `*.sql.ts` o con valores interpolados; escrituras o DDL; tocar `.env`; agregar dependencias; relajar ESLint, tests o `init.sh`, ni silenciar chequeos en `harness/arness.config.json` (AGENTS.md §0 y §13).
+- No corrijas advertencias de `init.sh` que ya existían y no son parte del encargo; menciónalas en la entrega. Tu cambio no debe agregar advertencias nuevas.
 - **No edites `harness/progress.md`**: lo mantiene el líder. Lo que quieras dejar registrado va en tu entrega.
 - No edites la base del harness (`AGENTS.md`, `init.sh`, puentes, `harness/agents/` y `harness/skills/`, `harness/playbooks/` y `harness/reference/`).
 - Las decisiones solo las redactas si el líder lo encarga, y siempre en estado `Propuesta`.

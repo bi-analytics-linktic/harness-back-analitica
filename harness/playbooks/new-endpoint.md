@@ -31,7 +31,7 @@ Si falta información, pregunta. No inventes columnas, tablas ni reglas.
 8. `<endpoint>.controller.ts`: `@Get('<segmento>')`, recibe el DTO, lo convierte en filtros, llama al service y fija `X-Cache`.
 9. Registrar controller, service y provider del repository (`{ provide: X_REPOSITORY, useClass: PgXRepository }`) en `<modulo>.module.ts`.
 
-Aplica la regla de agrupación (más de 2 archivos del mismo tipo → carpeta por tipo).
+Aplica la regla de agrupación (más de 2 archivos del mismo tipo en una carpeta → carpeta por tipo). `init.sh` verifica que el endpoint tenga todos estos archivos y los specs de la sección 2.
 
 ## 2. Tests
 

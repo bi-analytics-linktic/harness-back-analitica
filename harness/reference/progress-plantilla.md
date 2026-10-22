@@ -11,7 +11,8 @@
 
 - **Estado:** EN CURSO
 - **Actualizado:** AAAA-MM-DD HH:MM
-- **init.sh (última ejecución):** <fecha> · <OK | FALLA: resumen de fallos>
+- **init.sh (última ejecución):** <fecha> · <exit 0 + N advertencias | exit 1: resumen de fallos>
+- **Línea base de advertencias (inicio de la sesión):** <ids de init.sh --json, o "ninguna">
 
 ## Contrato confirmado
 

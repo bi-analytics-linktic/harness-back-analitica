@@ -58,6 +58,25 @@ Siempre con el status HTTP correcto. `details` es opcional.
 - Los tokens usan secretos distintos; el claim `type` (`access` o `refresh`) se valida.
 - Los clientes envían `Authorization: Bearer <accessToken>`. Ante `401 TOKEN_EXPIRED`, llaman a `/auth/refresh` y reintentan una vez.
 
+## CORS
+
+Allowlist por entorno: solo los orígenes de `CORS_ORIGINS` reciben `Access-Control-Allow-Origin`. Implementación de referencia: `harness/skills/nest-base/templates/cors/cors.ts` → `src/config/cors.ts`.
+
+| Opción de `app.enableCors()` | Valor |
+|---|---|
+| `origin` | función que acepta solo los orígenes exactos de `CORS_ORIGINS` (sin `Origin` → sin cabeceras CORS) |
+| `methods` | `GET, POST, OPTIONS` |
+| `allowedHeaders` | `Authorization, Content-Type, X-Request-Id` |
+| `exposedHeaders` | `X-Cache, X-Request-Id` |
+| `credentials` | `false` (la API usa `Bearer`, no cookies) |
+| `maxAge` | `CORS_MAX_AGE_SECONDS` (default 600) |
+| `optionsSuccessStatus` | `204` |
+
+- **Validación al arrancar** (`src/config/`): `CORS_ORIGINS` es obligatoria; se rechazan `*` y comodines, valores que no son un origen (`esquema://host[:puerto]`, sin ruta) y `http://` fuera de `localhost`, `127.0.0.1` o `[::1]`.
+- **Prohibido:** `enableCors()` sin opciones, `origin: true`, `origin: '*'`, reflejar el `Origin` recibido o `credentials: true`.
+- **Tests:** `src/config/cors.spec.ts` (parseo y validación) y `test/cors.e2e-spec.ts`: preflight permitido → `204` con `Access-Control-Allow-Origin`, métodos, cabeceras y `max-age`; preflight de un origen no permitido → sin `Access-Control-Allow-Origin`.
+- `init.sh` advierte si `.env.example` no define `CORS_ORIGINS` o lo define con `*`, y si `src/main.ts` no llama a `enableCors` o lo abre a cualquier origen.
+
 ## Caché
 
 - Header `X-Cache: HIT | MISS | BYPASS` en toda respuesta cacheable.
@@ -82,3 +101,25 @@ Siempre con el status HTTP correcto. `details` es opcional.
 | Redis caído o deshabilitado | sigue en `200`; `cache: down / disabled` |
 
 `init.sh` consume este formato para informar qué base está caída.
+
+## Monitor
+
+Tablero de estado para el equipo, **fuera de `/api/v1`** y apagado por defecto. Implementación de referencia: `harness/skills/nest-base/templates/monitor/` → `src/common/monitor/`.
+
+| Ruta | Sesión | Respuesta |
+|---|---|---|
+| `GET /monitor` | cookie | HTML con los widgets; sin sesión → `303` a `/monitor/login` |
+| `GET /monitor/login` | — | formulario HTML (`password`) |
+| `POST /monitor/login` | — | correcta → `303` a `/monitor` y `Set-Cookie`; incorrecta → `401` con el formulario y sin cookie |
+| `POST /monitor/logout` | — | borra la cookie (`Max-Age=0`) y `303` a `/monitor/login` |
+
+- **Activación:** `MONITOR_ENABLED=true`. Con cualquier otro valor, todas las rutas responden `404`.
+- **Render:** `react-dom/server` (`renderToStaticMarkup`) con `createElement`, sin JSX, sin hidratación, sin bundler y sin `<script>`. Estilos inline.
+- **Login:** la contraseña se compara con `ACCESS_TOKEN` en tiempo constante, igual que `/auth/login`. Al acertar se emite un JWT con `type: "monitor"` (firmado con `JWT_ACCESS_SECRET`, dura `MONITOR_SESSION_EXPIRES_IN`) en la cookie `arness_monitor`: `HttpOnly; Secure; SameSite=Strict; Path=/monitor; Max-Age=<duración>`. Un access token (`type: "access"`) no sirve como cookie ni la cookie sirve como `Bearer`.
+- **Guards:** el controller lleva `@MonitorRoute()`, que `JwtAuthGuard` omite, y `MonitorSessionGuard`, que exige la cookie salvo en los handlers `@MonitorLogin()` (formulario, login y logout). No es `@Public()`.
+- **Rate limiting:** cuando el harness incorpore límite de intentos para `/auth/login`, el login del monitor lo comparte.
+- **Cabeceras en toda respuesta:** `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`, `Cache-Control: no-store`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` y `Referrer-Policy: no-referrer`.
+- **Widgets:** `MonitorWidget { id; title; order; collect(): Promise<MonitorValue> }`, registrados en el multi-provider `MONITOR_WIDGETS` de `MonitorModule`. Un widget que lanza o tarda más de 2 s se muestra como "No disponible"; el log registra solo el tipo de error, nunca su mensaje.
+- **Widget base `endpoints-total`:** cuenta las rutas HTTP con `DiscoveryService` y `MetadataScanner`, excluye `monitor`, `health` y `auth`, y desglosa por el primer segmento de la ruta (el módulo).
+- **Nunca se muestran:** secretos, variables de entorno, SQL, errores de PostgreSQL ni datos de negocio (filas, montos, nombres de clientes). Solo conteos y estados técnicos.
+- **Tests:** unit de servicio, página, sesión, guard y widget; e2e `test/monitor.e2e-spec.ts` (redirección sin cookie, `401` sin cookie con contraseña incorrecta, login y conteo correcto con controllers de prueba, widget con error que no rompe la página, sin `<script>`, `404` con `MONITOR_ENABLED=false`).

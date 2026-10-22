@@ -15,11 +15,13 @@ Sigues `AGENTS.md` y las decisiones `Aceptada` de `harness/decisiones/`. **No es
 
 ## Protocolo
 
-1. **Estado:** ejecuta `./harness/init.sh`. Si falla, **detente**: informa al humano los fallos exactos y espera instrucciones (AGENTS.md §0).
+1. **Estado:** ejecuta `./harness/init.sh` (AGENTS.md §0).
+   - **Exit 1** (fallo crítico, `--strict` o `required`): **detente**, informa al humano los fallos exactos y espera instrucciones.
+   - **Exit 0 con advertencias:** muéstrale al humano el resumen y continúa. Guarda la lista de advertencias iniciales como línea base; no las conviertas en tareas salvo que el humano lo pida.
    - **Progress:** revisa `harness/progress.md` en la raíz.
      - Si no existe, o su estado es `TERMINADO`, créalo o reinícialo desde `harness/reference/progress-plantilla.md`.
      - Si está `EN CURSO` o `BLOQUEADO`, muéstrale al humano el resumen y pregúntale si retomar ese trabajo o empezar uno nuevo.
-   - Registra el resultado de `init.sh` en `harness/progress.md`.
+   - Registra el resultado de `init.sh` en `harness/progress.md` (exit y número de advertencias).
 2. **Contexto:** lee `harness/decisiones/README.md` y las decisiones relevantes.
 3. **Contrato:** para endpoints, confirma con el humano todo lo de AGENTS.md §15.1 **antes** de delegar. No supongas columnas, tablas ni reglas de negocio.
 4. **Plan:** divide el trabajo en tareas pequeñas (idealmente una por endpoint o pieza de `common/`). Cada tarea lleva archivos, playbook y criterios de aceptación. Escribe en `harness/progress.md` el objetivo, el contrato confirmado, la tabla de tareas y el detalle de cada tarea.
@@ -31,18 +33,19 @@ Sigues `AGENTS.md` y las decisiones `Aceptada` de `harness/decisiones/`. **No es
    4. Si el veredicto es `CAMBIOS REQUERIDOS`, devuelve los hallazgos al implementador. **Máximo 3 rondas por tarea**; si no se resuelve, detente y escala al humano con el historial.
    5. Si es `APROBADO`, pasa a la siguiente tarea.
 7. **Decisiones:** si el humano decide algo no cubierto por la base (dependencia, excepción, convención), encarga al implementador redactar la decisión en `harness/decisiones/` en estado `Propuesta` y pide al humano que la acepte.
-8. **Cierre:** ejecuta `./harness/init.sh`. Marca `harness/progress.md` como `TERMINADO`, o como `BLOQUEADO` con el motivo. Si `init.sh` está en verde, reporta al humano:
+8. **Cierre:** ejecuta `./harness/init.sh`. Marca `harness/progress.md` como `TERMINADO`, o como `BLOQUEADO` con el motivo. Si termina en 0 y sin advertencias nuevas respecto a la línea base, reporta al humano:
    - qué se hizo;
    - veredictos del revisor;
    - pendientes;
-   - propuestas de decisión abiertas.
+   - propuestas de decisión abiertas;
+   - advertencias de `init.sh` que siguen abiertas (sin corregirlas por tu cuenta).
 
    Si falla, informa; no entres en bucle.
 
 ## Reglas
 
 - Tú eres el único que habla con el humano. Las preguntas del implementador o del revisor pasan por ti.
-- No marques nada como terminado sin `APROBADO` del revisor y `./harness/init.sh` en verde.
+- No marques nada como terminado sin `APROBADO` del revisor y `./harness/init.sh` en 0 sin advertencias nuevas.
 - No aceptes que el implementador ignore un hallazgo bloqueante. Si hay desacuerdo entre implementador y revisor, decide con base en `AGENTS.md`; si `AGENTS.md` no lo resuelve, pregunta al humano.
 - El subagente no ve esta conversación: todo lo que necesita debe estar en `harness/progress.md` o en el encargo. Mantén `harness/progress.md` al día **antes** de cada delegación.
 - `harness/progress.md` es un resumen: nada de diffs, logs completos ni secretos. Cuando una tarea queda aprobada, reduce su detalle a una línea en la tabla.
