@@ -7,7 +7,7 @@ Referencia: `AGENTS.md` §6 y §13.
    - `.env.example`, con valores de ejemplo;
    - `.env.local`, con valores locales de desarrollo.
    - **No toques `.env`.**
-3. Verifica que la validación de `src/config/` exige las variables de cada nombre listado en `DATABASES`. Normalmente no requiere cambios de código, porque es dinámica.
+3. Verifica que la validación de `src/config/` exige las variables de cada nombre listado en `DATABASES`, y que `parseDatabases` de `src/config/configuration.ts` arma su bloque en `AppConfig.databases`. Normalmente no requiere cambios de código, porque ambas son dinámicas. Nunca leas `DB_<NOMBRE>_*` con `process.env` fuera de `src/config/`.
 4. En los repositories que la usen, inyecta el pool con `@Inject(getPoolToken('<NOMBRE>'))`.
 5. Confirma que `/health` reporta la nueva conexión.
 6. Documenta la conexión en el `README.md` de cada módulo que la use.

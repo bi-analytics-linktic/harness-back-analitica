@@ -8,8 +8,14 @@ const TEMPLATE = path.join(PKG_ROOT, 'harness/skills/nest-base/templates/eslint.
 
 // eslint es devDependency del repo del paquete (pnpm install); sin él, la prueba se omite con aviso.
 const eslint = await import('eslint').catch(() => null);
-const { architectureBoundaries, COMMON_IMPORTS_MODULES, MODULE_IMPORTS_OTHER_MODULE, MODULE_ABSOLUTE_IMPORT } =
-  await import(TEMPLATE);
+const {
+  architectureBoundaries,
+  configBoundaries,
+  COMMON_IMPORTS_MODULES,
+  MODULE_IMPORTS_OTHER_MODULE,
+  MODULE_ABSOLUTE_IMPORT,
+  PROCESS_ENV_OUTSIDE_CONFIG,
+} = await import(TEMPLATE);
 
 const PROJECT = '/proyecto';
 
@@ -80,5 +86,33 @@ describe('plantilla eslint.boundaries.mjs', { skip: !eslint && 'eslint no está 
   it('salir del módulo hacia otra carpeta de src sigue prohibido', () => {
     forbidden('src/modules/fidu/cartera/cartera.module.ts', '../../../app.module', MODULE_IMPORTS_OTHER_MODULE);
     forbidden('src/modules/fidu/cartera/cartera.module.ts', '../../../commonx/a', MODULE_IMPORTS_OTHER_MODULE);
+  });
+});
+
+describe('plantilla eslint.boundaries.mjs: configBoundaries', { skip: !eslint && 'eslint no está instalado: ejecuta pnpm install' }, () => {
+  const envConfig = [{ files: ['**/*.ts'], languageOptions: { sourceType: 'module' } }, ...configBoundaries];
+
+  /** Mensajes de no-restricted-properties para `code` en `file`. */
+  const lintEnv = (file, code) =>
+    new eslint.Linter({ cwd: PROJECT })
+      .verify(code, envConfig, { filename: path.join(PROJECT, file) })
+      .map((m) => {
+        assert.equal(m.fatal, undefined, m.message);
+        assert.ok(m.message.includes(PROCESS_ENV_OUTSIDE_CONFIG), m.message);
+        return m.ruleId;
+      });
+  const RESTRICTED = 'no-restricted-properties';
+
+  it('process.env fuera de src/config/ falla, también desestructurado', () => {
+    for (const file of ['src/main.ts', 'src/common/cache/cache.service.ts', 'src/modules/fidu/cartera/resumen/resumen.service.ts']) {
+      assert.deepEqual(lintEnv(file, 'export const port = process.env.PORT;\n'), [RESTRICTED], file);
+    }
+    assert.deepEqual(lintEnv('src/main.ts', 'const { env } = process;\nexport default env;\n'), [RESTRICTED]);
+  });
+
+  it('src/config/ y los tests pueden leer process.env', () => {
+    for (const file of ['src/config/configuration.ts', 'src/config/env.validation.ts', 'src/common/cache/cache.service.spec.ts', 'test/auth.e2e-spec.ts']) {
+      assert.deepEqual(lintEnv(file, 'export const port = process.env.PORT;\n'), [], file);
+    }
   });
 });

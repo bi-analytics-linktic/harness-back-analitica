@@ -6,9 +6,35 @@ Parte de la base del harness (AGENTS.md §6 a §10). Todas las variables:
 
 `.env` nunca lo toca un agente. Si falta una variable requerida, la app falla al arrancar con un mensaje claro.
 
+## Dónde se leen las variables
+
+`process.env` se lee **solo** en `src/config/configuration.ts` (plantilla `harness/skills/nest-base/templates/config/`). Ese archivo agrupa las variables por tema y convierte sus tipos; el resto del código recibe la configuración ya tipada.
+
+```typescript
+// src/config/configuration.ts (extracto)
+export function buildConfiguration(env: Env): AppConfig {
+  return {
+    app: { nodeEnv: text(env, 'NODE_ENV', 'development'), port: int(env, 'PORT', 3000) },
+    databases: parseDatabases(env), // DATABASES=MAIN,REPORTS → { MAIN: { host, port, ... }, REPORTS: {...} }
+    auth: { accessToken: required(env, 'ACCESS_TOKEN'), jwt: { accessSecret: required(env, 'JWT_ACCESS_SECRET'), ... } },
+    // cache, cors, monitor...
+  };
+}
+export default (): AppConfig => buildConfiguration(process.env);
+```
+
+- **Registro:** `ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env.local', '.env'], validate, load: [configuration] })`. La validación (class-validator) revisa las variables crudas; `configuration.ts` solo agrupa y convierte.
+- **Consumo:** `ConfigService<AppConfig, true>` con rutas tipadas, por ejemplo `config.get('cache.enabled', { infer: true })`. También en `main.ts` (`app.get(ConfigService)`): ni siquiera el puerto se lee de `process.env`.
+- **Secretos sin valor por defecto** (`ACCESS_TOKEN`, `JWT_*_SECRET`, `DB_*_PASSWORD`): si faltan, la app no arranca. El error nombra la variable, nunca su valor. Los defaults son solo para valores no sensibles.
+- **Tests:** los specs y `test/` pueden preparar `process.env`; `buildConfiguration(env)` es una función pura que se prueba con un objeto propio.
+- **Verificación:** ESLint (`configBoundaries` de `eslint.boundaries.mjs`, regla `no-restricted-properties`) e `init.sh` (`env.process-env`, `env.configuration-file`, `env.eslint`).
+
+**Agregar una variable** es, en el mismo cambio: `.env.example` + `.env.local` + validación + `configuration.ts` (y su tipo `AppConfig`) + esta referencia.
+
 ## App
 
 ```dotenv
+NODE_ENV=development             # development | test | production (default development)
 PORT=3000
 LOG_LEVEL=info
 ```

@@ -12,6 +12,7 @@ Revisa el diff contra `AGENTS.md` y reporta cada hallazgo con archivo y línea, 
 - [ ] El monitor sin `MonitorSessionGuard`, marcado `@Public()`, dentro de `/api/v1`, con `<script>`, o un widget que muestra secretos, SQL, errores crudos o datos de negocio
 - [ ] Tokens, contraseñas o secretos en logs, respuestas, código o commits
 - [ ] Cambios en `.env`, o `.env.local` incluido en el commit
+- [ ] `process.env` fuera de `src/config/` en código nuevo (salvo tests), o un secreto con valor por defecto en `configuration.ts`
 - [ ] Una dependencia nueva sin aprobación
 - [ ] La API falla si Redis está caído o deshabilitado
 - [ ] Se editó la base del harness (`AGENTS.md`, puentes o playbooks) en lugar de registrar la decisión en `harness/decisiones/`
@@ -31,6 +32,6 @@ Revisa el diff contra `AGENTS.md` y reporta cada hallazgo con archivo y línea, 
 
 - [ ] Un spec por archivo, incluidos los casos HIT/MISS/BYPASS
 - [ ] Postman, `FRONT.md` y el README del módulo actualizados
-- [ ] Variables nuevas en `.env.example`, `.env.local` y `src/config/`
+- [ ] Variables nuevas en `.env.example`, `.env.local`, la validación y `src/config/configuration.ts` (`AppConfig`)
 - [ ] `./harness/init.sh` termina en 0 sin advertencias nuevas; las preexistentes se reportan, no se corrigen fuera de alcance
 - [ ] Código en inglés, docs en español, commit con formato Conventional Commits

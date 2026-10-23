@@ -4,7 +4,7 @@ import eslint from '@eslint/js';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
-import { architectureBoundaries } from './eslint.boundaries.mjs';
+import { architectureBoundaries, configBoundaries } from './eslint.boundaries.mjs';
 
 // Las palabras clave SQL se escriben en MAYÚSCULAS por convención. Detecta el SQL al inicio del
 // literal, también tras saltos de línea o paréntesis (subconsultas), incluidas escrituras.
@@ -55,6 +55,8 @@ export default tseslint.config(
   },
   // Fronteras: common no importa de modules y los módulos no se importan entre sí.
   ...architectureBoundaries,
+  // Configuración: process.env solo en src/config/ (configuration.ts).
+  ...configBoundaries,
   {
     files: ['src/common/database/**/*.ts', 'src/**/*.repository.ts', 'src/**/*.repository.spec.ts'],
     rules: { 'no-restricted-imports': 'off' },

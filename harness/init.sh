@@ -493,6 +493,25 @@ EOF
   fi
 
   # ───────────────────────────────────────────────────────────────────────────
+  section "Variables de entorno"
+
+  if [ -d src ]; then
+    # Configuración centralizada (AGENTS.md §14): process.env solo en src/config/; los tests pueden usarlo.
+    if [ -f src/config/configuration.ts ]; then ok "src/config/configuration.ts"
+    else issue env.configuration-file "Falta src/config/configuration.ts: copia harness/skills/nest-base/templates/config/ (configuracion.md, Dónde se leen)"; fi
+
+    env_out="$(grep -rnE --include='*.ts' 'process\.env|\{[^}]*\benv\b[^}]*\}[[:space:]]*=[[:space:]]*process\b' src 2>/dev/null \
+      | grep -vE '^[^:]+:[0-9]+:[[:space:]]*(//|/?\*)' | cut -d: -f1 \
+      | grep -vE '^src/config/|\.spec\.ts$' | sort -u)"
+    if [ -n "$env_out" ]; then issue env.process-env "process.env fuera de src/config/ (usa ConfigService): $(echo $env_out)"
+    else ok "process.env solo en src/config/"; fi
+  fi
+  if [ -f eslint.config.mjs ]; then
+    if grep -q 'configBoundaries' eslint.config.mjs; then ok "ESLint restringe process.env a src/config/ (configBoundaries)"
+    else issue env.eslint "eslint.config.mjs no aplica configBoundaries de eslint.boundaries.mjs (process.env solo en src/config/)"; fi
+  fi
+
+  # ───────────────────────────────────────────────────────────────────────────
   section "Seguridad"
 
   if [ -f src/main.ts ]; then

@@ -100,7 +100,8 @@ pnpm add -D @types/pg @types/react @types/react-dom
    - `pg` solo en `common/database` y `*.repository.ts`;
    - texto SQL solo en `*.sql.ts` (también tras saltos de línea o `(`, e incluidas escrituras);
    - nada de escrituras o DDL en `*.sql.ts`;
-   - fronteras (`eslint.boundaries.mjs`): `src/common` no importa de `src/modules`, y un módulo no importa de otro módulo ni de otro cliente; solo sale hacia `src/common` y `src/config`. Usa `@typescript-eslint/no-restricted-imports`, separada de la regla de `pg`, sin dependencias nuevas.
+   - fronteras (`eslint.boundaries.mjs`): `src/common` no importa de `src/modules`, y un módulo no importa de otro módulo ni de otro cliente; solo sale hacia `src/common` y `src/config`. Usa `@typescript-eslint/no-restricted-imports`, separada de la regla de `pg`, sin dependencias nuevas;
+   - configuración (`configBoundaries` de `eslint.boundaries.mjs`): `process.env` solo en `src/config/`, salvo specs y `test/`.
 4. **Prettier:** copia `harness/skills/nest-base/templates/prettierrc.json` → `.prettierrc` y `.../templates/prettierignore` → `.prettierignore`.
 5. **Editor:** copia `harness/skills/nest-base/templates/editorconfig` → `.editorconfig`.
 6. **Aislar el harness del proyecto:**
@@ -116,9 +117,9 @@ Implementa cada pieza con su spec. Sin lógica de negocio y sin módulos de ejem
 
 | Ruta | Contenido mínimo |
 |---|---|
-| `src/main.ts` | Logger pino (`bufferLogs`), prefijo `api/v1` excluyendo `health` y `monitor` (`{ exclude: ['health', 'monitor', 'monitor/{*path}'] }`, o la sintaxis de rutas de la versión de Nest), `ValidationPipe({ whitelist, forbidNonWhitelisted, transform })`, `app.enableCors(buildCorsOptions(...))` con los valores validados de config, `enableShutdownHooks`, puerto desde config |
+| `src/main.ts` | Logger pino (`bufferLogs`), prefijo `api/v1` excluyendo `health` y `monitor` (`{ exclude: ['health', 'monitor', 'monitor/{*path}'] }`, o la sintaxis de rutas de la versión de Nest), `ValidationPipe({ whitelist, forbidNonWhitelisted, transform })`, `app.enableCors(buildCorsOptions(...))` con los valores validados de config, `enableShutdownHooks`, puerto desde `ConfigService` (`app.port`), nunca de `process.env` |
 | `src/app.module.ts` | Importa config, logging, database, cache, auth, health; registra el guard JWT global y el filtro de errores |
-| `src/config/` | `ConfigModule` global con `envFilePath: ['.env.local', '.env']`; validación con class-validator que falla al arrancar, incluida la validación dinámica de `DB_<NOMBRE>_*` por cada nombre en `DATABASES`. `cors.ts` y `cors.spec.ts` desde `templates/cors/`: la validación llama a `parseCorsOrigins` y `parseCorsMaxAge`, así que la app no arranca sin `CORS_ORIGINS` o con `*` |
+| `src/config/` | `ConfigModule` global con `envFilePath: ['.env.local', '.env']`, `validate` y `load: [configuration]`; validación con class-validator que falla al arrancar, incluida la validación dinámica de `DB_<NOMBRE>_*` por cada nombre en `DATABASES`. `configuration.ts` y `configuration.spec.ts` desde `templates/config/`: **único lugar que lee `process.env`**, exporta `AppConfig` y no da valor por defecto a ningún secreto. `cors.ts` y `cors.spec.ts` desde `templates/cors/`: la validación y `configuration.ts` llaman a `parseCorsOrigins` y `parseCorsMaxAge`, así que la app no arranca sin `CORS_ORIGINS` o con `*`. El resto del código consume `ConfigService<AppConfig, true>` |
 | `src/common/database/` | `DatabaseModule` dinámico: un `Pool` por nombre, `getPoolToken(name)`, sesión con `default_transaction_read_only=on` y `statement_timeout`, cierre en shutdown |
 | `src/common/cache/` | `CacheService` sobre ioredis (`lazyConnect`, `enableOfflineQueue: false`, `commandTimeout`, reintentos con backoff). No lanza nunca y devuelve `HIT` / `MISS` / `BYPASS`. Hash estable de filtros (claves ordenadas → sha256). Con `CACHE_ENABLED=false` no conecta |
 | `src/common/auth/` | `POST auth/login` y `POST auth/refresh` (`@Public()`), `timingSafeEqual` sobre sha256 de ambos valores, secretos distintos y claim `type`, `JwtAuthGuard` como `APP_GUARD`. El guard omite las rutas con `@Public()` y con `IS_MONITOR_ROUTE_KEY` (`@MonitorRoute()`, de `src/common/monitor/monitor.decorators.ts`) |
@@ -130,7 +131,7 @@ Implementa cada pieza con su spec. Sin lógica de negocio y sin módulos de ejem
 
 ### Archivos de soporte
 
-- **`.env.example` y `.env.local`:** las mismas claves. Incluyen `PORT=3000`, `DATABASES=MAIN`, `DB_MAIN_*`, `ACCESS_TOKEN=example123`, `JWT_*`, `CACHE_*`, `REDIS_URL`, `LOG_LEVEL`, `CORS_ORIGINS=http://localhost:4200`, `CORS_MAX_AGE_SECONDS=600`, `MONITOR_ENABLED=false` y `MONITOR_SESSION_EXPIRES_IN=15m`. En `.env.example` todos los secretos llevan valores de ejemplo. **No crees ni toques `.env`.**
+- **`.env.example` y `.env.local`:** las mismas claves. Incluyen `NODE_ENV=development`, `PORT=3000`, `DATABASES=MAIN`, `DB_MAIN_*`, `ACCESS_TOKEN=example123`, `JWT_*`, `CACHE_*`, `REDIS_URL`, `LOG_LEVEL`, `CORS_ORIGINS=http://localhost:4200`, `CORS_MAX_AGE_SECONDS=600`, `MONITOR_ENABLED=false` y `MONITOR_SESSION_EXPIRES_IN=15m`. En `.env.example` todos los secretos llevan valores de ejemplo. **No crees ni toques `.env`.**
 - **`postman/arness-back.postman_collection.json`** (formato v2.1): variables `baseUrl`, `accessToken` y `refreshToken`, y auth Bearer heredada. Carpeta `Auth` con Login (su script de test guarda los tokens) y Refresh, más la request `Health`. Agrega también `postman/local.postman_environment.json` con `baseUrl=http://localhost:3000`.
 - **`FRONT.md`:**
   - flujo de auth (login, uso del Bearer, refresh ante `401 TOKEN_EXPIRED`);

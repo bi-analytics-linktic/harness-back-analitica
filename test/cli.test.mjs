@@ -395,6 +395,38 @@ describe('init.sh: CORS, fronteras y monitor', () => {
   });
 });
 
+describe('init.sh: configuración centralizada', () => {
+  it('advierte process.env fuera de src/config/ y la falta de configuration.ts, sin contar src/config ni tests', () => {
+    const repo = legacyProject();
+    run(repo, ['init']);
+    writeFiles(repo, {
+      'eslint.config.mjs': 'export default [];\n',
+      'src/main.ts': 'const port = process.env.PORT;\n',
+      'src/common/cache/cache.service.ts': 'const { env } = process;\n',
+      'src/common/cache/cache.service.spec.ts': "process.env.CACHE_ENABLED = 'false';\n",
+      'src/config/env.validation.ts': 'export const raw = process.env;\n',
+      'src/modules/cliente/cartera/cartera.constants.ts': '// antes: process.env.X\nexport const A = 1;\n',
+    });
+    const { status, report } = initJson(repo, ['--quick']);
+    assert.equal(status, 0);
+    const leak = issuesOf(report, 'env.process-env');
+    assert.equal(leak.length, 1);
+    assert.equal(leak[0].level, 'warning');
+    assert.match(leak[0].message, /src\/common\/cache\/cache\.service\.ts src\/main\.ts$/);
+    assert.equal(issuesOf(report, 'env.configuration-file').length, 1);
+    assert.equal(issuesOf(report, 'env.eslint').length, 1);
+
+    writeFiles(repo, {
+      'eslint.config.mjs': 'import { architectureBoundaries, configBoundaries } from "./eslint.boundaries.mjs";\n',
+      'src/main.ts': "const port = config.get('app.port', { infer: true });\n",
+      'src/common/cache/cache.service.ts': 'export class CacheService {}\n',
+      'src/config/configuration.ts': 'export default () => ({ port: process.env.PORT });\n',
+    });
+    const ok = initJson(repo, ['--quick']).report;
+    assert.ok(!issueIds(ok).some((id) => id.startsWith('env.')), JSON.stringify(issueIds(ok)));
+  });
+});
+
 describe('actualización segura de proyectos instalados', () => {
   it('compatibilidad: sync no toca archivos del proyecto, init.sh sigue en 0 y rollback restaura la base', () => {
     const repo = legacyProject();

@@ -169,6 +169,7 @@ Un agente **nunca**:
 9. Abre CORS (`*`, `origin: true` o reflejar el origen) o habilita `credentials`.
 10. Deja el monitor sin `MonitorSessionGuard`, lo marca `@Public()` o muestra en él secretos, SQL, errores crudos o datos de negocio.
 11. Importa `modules/` desde `common/`, o un módulo o cliente desde otro.
+12. Lee `process.env` fuera de `src/config/` (salvo en tests).
 
 ## 14. Convenciones
 
@@ -176,7 +177,7 @@ Un agente **nunca**:
 - **Nombres:** archivos en kebab-case con sufijo de rol (`portfolio-summary.service.ts`), clases en PascalCase y variables de entorno en UPPER_SNAKE_CASE.
 - **TypeScript:** `strict`, sin `any` (usa `unknown` y acota), tipos de retorno explícitos en la API pública.
 - **Commits:** Conventional Commits, ej. `feat(fiduprevisora/cartera): add summary endpoint`.
-- **Configuración:** sin valores mágicos; todo lo configurable sale de `src/config/` y se valida al arrancar.
+- **Configuración:** sin valores mágicos; todo lo configurable sale de `src/config/` y se valida al arrancar. `process.env` se lee **solo** en `src/config/configuration.ts`, que agrupa y tipa las variables (`AppConfig`); el resto del código usa `ConfigService<AppConfig, true>`. Los secretos no tienen valor por defecto. Lo verifican ESLint (`configBoundaries`) e `init.sh`. Detalle: `harness/reference/configuracion.md`.
 
 ## 15. Cómo trabaja el agente
 

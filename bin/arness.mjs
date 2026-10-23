@@ -389,6 +389,7 @@ const DOCTOR_HINTS = {
   toolchain: 'Skill nest-base §1 y §4: .nvmrc, packageManager, lockfile y scripts.',
   structure: 'AGENTS.md §4 y skill nest-base §4–§5. Adóptalo cuando convenga; no bloquea.',
   sql: 'AGENTS.md §6: SQL solo en *.sql.ts y sin escrituras.',
+  env: 'harness/reference/configuracion.md (Dónde se leen las variables): process.env solo en src/config/configuration.ts.',
   quality: 'pnpm install, pnpm lint, pnpm build, pnpm test.',
   health: 'harness/reference/contrato-http.md (Health) y la conexión a cada BD.',
 };
