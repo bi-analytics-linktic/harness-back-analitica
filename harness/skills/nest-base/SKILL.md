@@ -140,6 +140,7 @@ Implementa cada pieza con su spec. Sin lógica de negocio y sin módulos de ejem
   - significado de `X-Cache`;
   - CORS: el origen del frontend debe estar en `CORS_ORIGINS` de cada entorno (pedirlo al backend);
   - endpoints de Auth con su consumo recomendado.
+- **`docs/`:** copia `templates/docs/` (`TECNICO.md`, `EVOLUTIVO.md` y `PENDIENTES.md`). Completa en `TECNICO.md` lo que ya se sabe (cliente, conexión `MAIN`, entornos) y deja en `EVOLUTIVO.md` la entrada "Base del proyecto" con la fecha de hoy. Los pendientes del reporte final (§7) van a `PENDIENTES.md`.
 - **`Dockerfile`:** multi-stage con `node:<major-lts>-alpine`, `corepack enable`, `pnpm install --frozen-lockfile`, build y una imagen final solo con `dist/` y las dependencias de producción; usuario no root y `HEALTHCHECK` sobre `/health`.
 - **`azure-pipelines.yml`:** Node desde `.nvmrc`, `corepack enable`, `pnpm install --frozen-lockfile`, `lint:check`, `format:check`, `build`, `test` y `docker build`.
 

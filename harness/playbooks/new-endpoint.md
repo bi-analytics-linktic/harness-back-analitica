@@ -78,6 +78,11 @@ Qué devuelve: <una frase>.
 
 Agrega el endpoint, su conexión y el origen de datos.
 
+### docs/
+
+- `docs/EVOLUTIVO.md`: agrega al final una entrada `## <fecha> · <cliente>/<modulo>` con lo entregado en lenguaje de negocio (qué reporte quedó disponible), el endpoint y la referencia. Solo avance.
+- `docs/PENDIENTES.md`: lo que quedó abierto (por ejemplo, una vista que aún no existe en la BD o un filtro aplazado).
+
 ## 4. Cierre
 
 Corre `./harness/init.sh` y revisa el Definition of Done de `AGENTS.md` §15.

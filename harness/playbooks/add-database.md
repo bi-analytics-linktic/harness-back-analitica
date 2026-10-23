@@ -10,7 +10,7 @@ Referencia: `AGENTS.md` §6 y §13.
 3. Verifica que la validación de `src/config/` exige las variables de cada nombre listado en `DATABASES`, y que `parseDatabases` de `src/config/configuration.ts` arma su bloque en `AppConfig.databases`. Normalmente no requiere cambios de código, porque ambas son dinámicas. Nunca leas `DB_<NOMBRE>_*` con `process.env` fuera de `src/config/`.
 4. En los repositories que la usen, inyecta el pool con `@Inject(getPoolToken('<NOMBRE>'))`.
 5. Confirma que `/health` reporta la nueva conexión.
-6. Documenta la conexión en el `README.md` de cada módulo que la use.
+6. Documenta la conexión en el `README.md` de cada módulo que la use y en la tabla de conexiones de `docs/TECNICO.md` (solo nombre lógico y origen, nunca credenciales), y agrega una entrada en `docs/EVOLUTIVO.md`.
 7. Corre `./harness/init.sh`.
 
 Recuerda que el usuario de BD debe ser de solo lectura. El pool fuerza `default_transaction_read_only = on` como segunda barrera, no como única.

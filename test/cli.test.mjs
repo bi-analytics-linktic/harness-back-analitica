@@ -452,6 +452,24 @@ describe('init.sh: formato de logs', () => {
   });
 });
 
+describe('init.sh: documentación del proyecto', () => {
+  it('advierte cada archivo de docs/ que falta, sin bloquear', () => {
+    const repo = legacyProject();
+    run(repo, ['init']);
+    let { status, report } = initJson(repo, ['--quick']);
+    assert.equal(status, 0);
+    assert.deepEqual(
+      issuesOf(report, 'docs.files').map((i) => [i.level, i.message]),
+      ['TECNICO', 'EVOLUTIVO', 'PENDIENTES'].map((n) => ['warning', `Falta el archivo docs/${n}.md`]),
+    );
+
+    const templates = path.join(PKG_ROOT, 'harness/skills/nest-base/templates/docs');
+    fs.cpSync(templates, path.join(repo, 'docs'), { recursive: true });
+    ({ report } = initJson(repo, ['--quick']));
+    assert.ok(!issueIds(report).includes('docs.files'));
+  });
+});
+
 describe('actualización segura de proyectos instalados', () => {
   it('compatibilidad: sync no toca archivos del proyecto, init.sh sigue en 0 y rollback restaura la base', () => {
     const repo = legacyProject();

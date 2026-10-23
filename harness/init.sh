@@ -342,6 +342,10 @@ else
            FRONT.md Dockerfile azure-pipelines.yml postman/arness-back.postman_collection.json; do
     need_file structure.files "$f"
   done
+  # Documentación del proyecto (AGENTS.md §12): FRONT.md en la raíz y docs/ con avance y pendientes.
+  for f in docs/TECNICO.md docs/EVOLUTIVO.md docs/PENDIENTES.md; do
+    need_file docs.files "$f"
+  done
   for d in src/config src/common/auth src/common/database src/common/cache src/common/http \
            src/common/logging src/common/health src/modules test; do
     need_dir structure.dirs "$d"

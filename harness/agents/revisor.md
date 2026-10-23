@@ -26,7 +26,7 @@ Comprueba que:
 - las tareas son pequeñas y tienen criterios verificables;
 - se usa el playbook correcto;
 - no hay nada que viole `AGENTS.md` o una decisión aceptada;
-- no falta la documentación obligatoria (§12).
+- no falta la documentación obligatoria (§12), incluida la entrada en `docs/EVOLUTIVO.md`.
 
 ### Entrega del implementador
 
@@ -34,6 +34,7 @@ Comprueba que:
 2. Recorre el checklist de `harness/playbooks/review.md`.
 3. Verifica tú mismo: `pnpm lint:check`, `pnpm test` y `pnpm build`. Al final del ciclo de una tarea, ejecuta `./harness/init.sh --json` y compáralo con la línea base registrada en `harness/progress.md`: una advertencia **nueva** causada por el cambio es `BLOQUEANTE`; las que ya existían no lo son.
 4. Contrasta el resultado con los criterios de aceptación del encargo.
+5. Verifica que `docs/EVOLUTIVO.md` tiene la entrada de la entrega y **solo** avance: un pendiente, bloqueo o riesgo ahí es `IMPORTANTE` y se mueve a `docs/PENDIENTES.md`.
 
 ## Reglas
 

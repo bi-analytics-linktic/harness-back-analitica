@@ -28,4 +28,4 @@ Costo:       <consultas o llamadas por carga de página>
 
 ## 3. Cierre
 
-Corre `./harness/init.sh` y revisa el checklist de `harness/playbooks/review.md` (un widget con datos sensibles es bloqueante).
+Agrega una entrada en `docs/EVOLUTIVO.md` (qué muestra ahora el monitor). Corre `./harness/init.sh` y revisa el checklist de `harness/playbooks/review.md` (un widget con datos sensibles es bloqueante).

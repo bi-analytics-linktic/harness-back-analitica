@@ -36,7 +36,7 @@ Sigues `AGENTS.md` y las decisiones `Aceptada` de `harness/decisiones/`. **No es
 8. **Cierre:** ejecuta `./harness/init.sh`. Marca `harness/progress.md` como `TERMINADO`, o como `BLOQUEADO` con el motivo. Si termina en 0 y sin advertencias nuevas respecto a la línea base, reporta al humano:
    - qué se hizo;
    - veredictos del revisor;
-   - pendientes;
+   - pendientes (registrados por el implementador en `docs/PENDIENTES.md`);
    - propuestas de decisión abiertas;
    - advertencias de `init.sh` que siguen abiertas (sin corregirlas por tu cuenta).
 

@@ -69,7 +69,7 @@ src/
     └── <endpoint>/  # §5
 ```
 
-Raíz (proyecto NestJS): `postman/`, `FRONT.md`, `test/` (e2e), `.env.example`, `Dockerfile`, `azure-pipelines.yml`, `.nvmrc`, ESLint y Prettier.
+Raíz (proyecto NestJS): `postman/`, `FRONT.md`, `docs/` (`TECNICO.md`, `EVOLUTIVO.md` y `PENDIENTES.md`, §12), `test/` (e2e), `.env.example`, `Dockerfile`, `azure-pipelines.yml`, `.nvmrc`, ESLint y Prettier.
 
 Harness (todo en `harness/`, separado del proyecto): `AGENTS.md`, `init.sh`, `agents/`, `skills/`, `playbooks/`, `reference/`, `decisiones/`, `arness.config.json` (opcional, del repo) y `progress.md` (estado de trabajo, no versionado). En la raíz solo quedan puentes: el enlace `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.cursor/rules/`, y los enlaces `.claude/agents`, `.claude/skills` y `.agents/skills`. El código del proyecto nunca vive en `harness/`, y `harness/` nunca entra al build, a los tests ni a la imagen Docker.
 
@@ -146,7 +146,7 @@ Un reporte es `GET /api/v1/<modulo>/<segmento>` y vive en una carpeta con estos 
 - **E2E:** `test/*.e2e-spec.ts` con Supertest: auth, envelope, errores y `X-Cache`.
 - Todo cambio de comportamiento lleva su test. Nunca `.skip` ni `.only` para pasar el pipeline.
 
-## 12. Documentación obligatoria por endpoint
+## 12. Documentación obligatoria
 
 Crear o cambiar un endpoint actualiza, **en el mismo cambio**:
 1. **`postman/arness-back.postman_collection.json`** (v2.1): una request mínima en la carpeta `<cliente>/<modulo>`, con `{{baseUrl}}` y `Bearer {{accessToken}}`.
@@ -154,6 +154,12 @@ Crear o cambiar un endpoint actualiza, **en el mismo cambio**:
 3. **`README.md` del módulo**: propósito, endpoints, conexión y tablas o vistas.
 
 Cambiar `.columns.ts`, los filtros o el envelope es un **cambio de contrato**: actualiza `FRONT.md` y sube la versión de la clave de caché.
+
+**Documentación del proyecto (`docs/`)**, plantillas en `harness/skills/nest-base/templates/docs/`:
+- **`docs/EVOLUTIVO.md`**: toda entrega (endpoint, módulo, conexión, widget del monitor, cambio de contrato) agrega **en el mismo cambio** una entrada al final: fecha, cliente/módulo, qué se entregó en lenguaje de negocio y referencia. **Solo avance:** nunca pendientes, bloqueos, stoppers ni riesgos. Las entradas anteriores no se reescriben.
+- **`docs/PENDIENTES.md`**: lo que quedó abierto (pendientes, bloqueos, recomendaciones, deuda técnica, advertencias de `init.sh` sin corregir), con fecha, contexto y tipo. Al resolverse pasa a *Resueltos*.
+- **`docs/TECNICO.md`**: arquitectura, módulos, conexiones (sin credenciales), variables propias, despliegue y enlace a las decisiones. Se actualiza cuando cambian.
+- `FRONT.md` sigue en la raíz.
 
 ## 13. Reglas prohibidas
 
@@ -188,6 +194,7 @@ Un agente **nunca**:
    - [ ] SQL solo en `.sql.ts` y parametrizado
    - [ ] Guard JWT activo y `X-Cache` presente
    - [ ] Postman, `FRONT.md` y README del módulo actualizados
+   - [ ] Entrada en `docs/EVOLUTIVO.md` (solo avance) y lo abierto en `docs/PENDIENTES.md`
    - [ ] Variables nuevas en `.env.example`, `.env.local` y `src/config/`
    - [ ] Decisión nueva registrada en `harness/decisiones/` (si aplica)
    - [ ] `./harness/init.sh` termina en 0 y sin advertencias nuevas
