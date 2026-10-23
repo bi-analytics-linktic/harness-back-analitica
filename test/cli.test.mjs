@@ -427,6 +427,31 @@ describe('init.sh: configuración centralizada', () => {
   });
 });
 
+describe('init.sh: formato de logs', () => {
+  it('advierte sin LOG_FORMAT, con pino-pretty en dependencies o con pretty en producción', () => {
+    const repo = legacyProject();
+    run(repo, ['init']);
+    let { status, report } = initJson(repo, ['--quick']);
+    assert.equal(status, 0);
+    assert.equal(issuesOf(report, 'logging.format-env')[0]?.level, 'warning');
+
+    writeFiles(repo, {
+      'package.json': JSON.stringify({ name: 'mi-backend', dependencies: { 'pino-pretty': '^13.0.0' } }),
+      '.env.example': 'PORT=3000\nNODE_ENV=production\nLOG_FORMAT=pretty\n',
+    });
+    ({ report } = initJson(repo, ['--quick']));
+    assert.equal(issuesOf(report, 'logging.pretty-production').length, 2);
+    assert.ok(!issueIds(report).includes('logging.format-env'));
+
+    writeFiles(repo, {
+      'package.json': JSON.stringify({ name: 'mi-backend', devDependencies: { 'pino-pretty': '^13.0.0' } }),
+      '.env.example': 'PORT=3000\nNODE_ENV=development\nLOG_FORMAT=pretty\n',
+    });
+    ({ report } = initJson(repo, ['--quick']));
+    assert.ok(!issueIds(report).some((id) => id.startsWith('logging.')), JSON.stringify(issueIds(report)));
+  });
+});
+
 describe('actualización segura de proyectos instalados', () => {
   it('compatibilidad: sync no toca archivos del proyecto, init.sh sigue en 0 y rollback restaura la base', () => {
     const repo = legacyProject();

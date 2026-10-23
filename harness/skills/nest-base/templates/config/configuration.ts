@@ -2,6 +2,7 @@
 // Single place in the project that reads process.env. The rest of the code receives AppConfig
 // through ConfigService<AppConfig, true>. Variables are validated at startup (env validation in
 // src/config/); this file only groups them and converts their types.
+import { type LogFormat, parseLogFormat } from '../common/logging/logger-options';
 import { parseCorsMaxAge, parseCorsOrigins } from './cors';
 
 export type Env = Record<string, string | undefined>;
@@ -19,7 +20,7 @@ export interface DatabaseConfig {
 
 export interface AppConfig {
   app: { nodeEnv: string; port: number };
-  logging: { level: string };
+  logging: { level: string; format: LogFormat };
   databases: Record<string, DatabaseConfig>;
   cache: {
     enabled: boolean;
@@ -103,12 +104,13 @@ export function parseDatabases(env: Env): Record<string, DatabaseConfig> {
 /** Pure: builds the configuration from an env object (tests pass their own). */
 export function buildConfiguration(env: Env): AppConfig {
   const cacheEnabled = bool(env, 'CACHE_ENABLED', false);
+  const nodeEnv = text(env, 'NODE_ENV', 'development');
   return {
-    app: {
-      nodeEnv: text(env, 'NODE_ENV', 'development'),
-      port: int(env, 'PORT', 3000),
+    app: { nodeEnv, port: int(env, 'PORT', 3000) },
+    logging: {
+      level: text(env, 'LOG_LEVEL', 'info'),
+      format: parseLogFormat(env.LOG_FORMAT, nodeEnv),
     },
-    logging: { level: text(env, 'LOG_LEVEL', 'info') },
     databases: parseDatabases(env),
     cache: {
       enabled: cacheEnabled,

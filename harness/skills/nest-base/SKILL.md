@@ -63,11 +63,12 @@ rm -rf "$TMP"
 pnpm install
 pnpm add @nestjs/config @nestjs/jwt @nestjs/terminus pg ioredis \
   class-validator class-transformer nestjs-pino pino-http react react-dom
-pnpm add -D @types/pg @types/react @types/react-dom
+pnpm add -D @types/pg @types/react @types/react-dom pino-pretty
 ```
 
 - Sin versiones fijadas a mano: pnpm resuelve la última estable y el lockfile las congela.
 - `react` y `react-dom` son solo para el monitor (`src/common/monitor/`); no se usan en ningún otro lugar.
+- `pino-pretty` va **solo en devDependencies**: formato legible de logs en desarrollo (`LOG_FORMAT=pretty`).
 - Si pnpm avisa que ignoró scripts de build (`pnpm approve-builds`), muestra la lista al humano y espera su aprobación.
 - Agrega el harness como devDependency desde git, con el tag de la versión del manifiesto (no hay registro npm):
   ```bash
@@ -124,14 +125,14 @@ Implementa cada pieza con su spec. Sin lógica de negocio y sin módulos de ejem
 | `src/common/cache/` | `CacheService` sobre ioredis (`lazyConnect`, `enableOfflineQueue: false`, `commandTimeout`, reintentos con backoff). No lanza nunca y devuelve `HIT` / `MISS` / `BYPASS`. Hash estable de filtros (claves ordenadas → sha256). Con `CACHE_ENABLED=false` no conecta |
 | `src/common/auth/` | `POST auth/login` y `POST auth/refresh` (`@Public()`), `timingSafeEqual` sobre sha256 de ambos valores, secretos distintos y claim `type`, `JwtAuthGuard` como `APP_GUARD`. El guard omite las rutas con `@Public()` y con `IS_MONITOR_ROUTE_KEY` (`@MonitorRoute()`, de `src/common/monitor/monitor.decorators.ts`) |
 | `src/common/http/` | Tipos `{ data, meta? }`, filtro global de errores `{ error: { code, message, details?, requestId, path, timestamp } }`. Errores de pg: `57014` → 504 `QUERY_TIMEOUT`; errores de conexión o `08*` / `57P01` → 503 `DATABASE_UNAVAILABLE` |
-| `src/common/logging/` | `nestjs-pino` en JSON, `genReqId` desde `X-Request-Id` o UUID y devuelto en la respuesta, `redact` de authorization, password, tokens y `*_SECRET` / `*_PASSWORD` |
+| `src/common/logging/` | `logger-options.ts` y su spec desde `templates/logging/`; `LoggerModule.forRootAsync` con `buildLoggerParams(config.get('logging', { infer: true }))`. JSON por defecto, `pretty` en desarrollo con `LOG_FORMAT`, `genReqId` desde `X-Request-Id` seguro o UUID y devuelto en la respuesta, `redact` de authorization, cookies, password, tokens y secretos |
 | `src/common/health/` | `GET /health` público con terminus. Indicadores `db_<nombre en minúsculas>` por conexión y `cache` con estado `up` / `down` / `disabled`; la caché nunca vuelve el health a 503 |
 | `src/common/monitor/` | Copia `templates/monitor/` completo (con sus specs) y registra `MonitorModule` en `app.module.ts`. `GET /monitor` fuera de `/api/v1`, `404` si `MONITOR_ENABLED` no es `true`, login con `ACCESS_TOKEN` y cookie de sesión, cabeceras CSP sin scripts, widget base `endpoints-total` (contrato-http.md, Monitor) |
 | `test/` | `auth.e2e-spec.ts` (login OK, login inválido, refresh, 401 sin token), `health.e2e-spec.ts` (pools y Redis mockeados con `overrideProvider`), y `cors.e2e-spec.ts` y `monitor.e2e-spec.ts` desde `templates/e2e/` |
 
 ### Archivos de soporte
 
-- **`.env.example` y `.env.local`:** las mismas claves. Incluyen `NODE_ENV=development`, `PORT=3000`, `DATABASES=MAIN`, `DB_MAIN_*`, `ACCESS_TOKEN=example123`, `JWT_*`, `CACHE_*`, `REDIS_URL`, `LOG_LEVEL`, `CORS_ORIGINS=http://localhost:4200`, `CORS_MAX_AGE_SECONDS=600`, `MONITOR_ENABLED=false` y `MONITOR_SESSION_EXPIRES_IN=15m`. En `.env.example` todos los secretos llevan valores de ejemplo. **No crees ni toques `.env`.**
+- **`.env.example` y `.env.local`:** las mismas claves. Incluyen `NODE_ENV=development`, `PORT=3000`, `DATABASES=MAIN`, `DB_MAIN_*`, `ACCESS_TOKEN=example123`, `JWT_*`, `CACHE_*`, `REDIS_URL`, `LOG_LEVEL`, `LOG_FORMAT` (`json` en `.env.example`, `pretty` en `.env.local`), `CORS_ORIGINS=http://localhost:4200`, `CORS_MAX_AGE_SECONDS=600`, `MONITOR_ENABLED=false` y `MONITOR_SESSION_EXPIRES_IN=15m`. En `.env.example` todos los secretos llevan valores de ejemplo. **No crees ni toques `.env`.**
 - **`postman/arness-back.postman_collection.json`** (formato v2.1): variables `baseUrl`, `accessToken` y `refreshToken`, y auth Bearer heredada. Carpeta `Auth` con Login (su script de test guarda los tokens) y Refresh, más la request `Health`. Agrega también `postman/local.postman_environment.json` con `baseUrl=http://localhost:3000`.
 - **`FRONT.md`:**
   - flujo de auth (login, uso del Bearer, refresh ante `401 TOKEN_EXPIRED`);

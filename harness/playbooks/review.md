@@ -11,6 +11,7 @@ Revisa el diff contra `AGENTS.md` y reporta cada hallazgo con archivo y línea, 
 - [ ] CORS abierto: `enableCors()` sin opciones, `origin: true`, `'*'`, reflejar el `Origin`, `credentials: true`, o `CORS_ORIGINS` con comodín
 - [ ] El monitor sin `MonitorSessionGuard`, marcado `@Public()`, dentro de `/api/v1`, con `<script>`, o un widget que muestra secretos, SQL, errores crudos o datos de negocio
 - [ ] Tokens, contraseñas o secretos en logs, respuestas, código o commits
+- [ ] `pino-pretty` en `dependencies` (va en devDependencies) o `LOG_FORMAT=pretty` para producción
 - [ ] Cambios en `.env`, o `.env.local` incluido en el commit
 - [ ] `process.env` fuera de `src/config/` en código nuevo (salvo tests), o un secreto con valor por defecto en `configuration.ts`
 - [ ] Una dependencia nueva sin aprobación

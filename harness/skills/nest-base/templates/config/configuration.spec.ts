@@ -1,5 +1,5 @@
 // Plantilla del harness → src/config/configuration.spec.ts
-import { buildConfiguration, Env } from './configuration';
+import { buildConfiguration, type Env } from './configuration';
 
 const base: Env = {
   DATABASES: 'MAIN',
@@ -17,6 +17,7 @@ describe('buildConfiguration', () => {
   it('groups variables by topic and applies non-sensitive defaults', () => {
     const config = buildConfiguration(base);
     expect(config.app).toEqual({ nodeEnv: 'development', port: 3000 });
+    expect(config.logging).toEqual({ level: 'info', format: 'json' });
     expect(config.databases.MAIN).toEqual({
       host: 'localhost',
       port: 5432,
@@ -67,9 +68,16 @@ describe('buildConfiguration', () => {
     );
   });
 
+  it('does not allow pretty logs in production', () => {
+    expect(() =>
+      buildConfiguration({ ...base, NODE_ENV: 'production', LOG_FORMAT: 'pretty' }),
+    ).toThrow('not allowed');
+  });
+
   it.each([
     ['PORT', 'abc', /integer/],
     ['MONITOR_ENABLED', 'yes', /true or false/],
+    ['LOG_FORMAT', 'xml', /json or pretty/],
   ])('rejects %s=%p', (name, value, message) => {
     expect(() => buildConfiguration({ ...base, [name]: value })).toThrow(message);
   });

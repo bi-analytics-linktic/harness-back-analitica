@@ -84,9 +84,22 @@ Allowlist por entorno: solo los orígenes de `CORS_ORIGINS` reciben `Access-Cont
 
 ## Logging
 
-- JSON estructurado (`nestjs-pino`). `requestId` desde `X-Request-Id` o UUID generado, devuelto en la respuesta.
+- JSON estructurado (`nestjs-pino`). `requestId` desde `X-Request-Id` (si es seguro: `[A-Za-z0-9._-]`, máximo 128) o UUID generado, devuelto en la respuesta.
 - Por request: método, ruta, status, duración, resultado de caché y conexión de BD.
-- Redact: `authorization`, `password`, `accessToken`, `refreshToken`, `*_SECRET` y `*_PASSWORD`.
+- Redact: `authorization`, cookies (`cookie` y `set-cookie`), `password`, `accessToken`, `refreshToken`, `*_SECRET` y `*_PASSWORD`.
+- Plantilla: `harness/skills/nest-base/templates/logging/logger-options.ts` (`buildLoggerParams`, `parseLogFormat`, `REDACT_PATHS`).
+
+### Formato por entorno (`LOG_FORMAT`)
+
+| Entorno | `LOG_FORMAT` | Ejemplo |
+|---|---|---|
+| Producción, QA, CI (y por defecto) | `json` | `{"level":30,"requestId":"a1b2c3","req":{"method":"GET","url":"/api/v1/cartera/resumen"},"res":{"statusCode":200},"responseTime":42,"msg":"GET /api/v1/cartera/resumen 200 42ms"}` |
+| Desarrollo local | `pretty` | `10:21:03 INFO: [a1b2c3] GET /api/v1/cartera/resumen 200 42ms {"cache":"HIT"}` |
+
+- Ambos formatos llevan los mismos campos y la **misma redacción**: el formato legible nunca muestra secretos.
+- `pretty` usa `pino-pretty`, que es **devDependency**: la imagen de producción no lo incluye. Si se pide `pretty` y no está instalado, el logger vuelve a JSON.
+- La validación rechaza `LOG_FORMAT=pretty` con `NODE_ENV=production`, y cualquier valor distinto de `json` o `pretty`.
+- Los logs no incluyen el SQL ejecutado ni sus parámetros en ningún formato.
 
 ## Health
 

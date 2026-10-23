@@ -13,3 +13,4 @@ Decisiones de diseño **del paquete `@linktic/arness-back`**. No se instalan en 
 | [0007](0007-fronteras-de-arquitectura-verificadas.md) | Fronteras de arquitectura verificadas por ESLint e init.sh | Aceptada | 2026-10-20 |
 | [0008](0008-monitor-ssr-con-react.md) | Tablero monitor con React SSR protegido por ACCESS_TOKEN | Aceptada | 2026-10-20 |
 | [0009](0009-configuracion-centralizada.md) | Configuración centralizada: process.env solo en src/config/configuration.ts | Aceptada | 2026-10-23 |
+| [0010](0010-logs-json-y-formato-legible.md) | Logs: JSON en producción y formato legible en desarrollo | Aceptada | 2026-10-23 |

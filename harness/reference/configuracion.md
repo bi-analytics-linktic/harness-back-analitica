@@ -36,8 +36,11 @@ export default (): AppConfig => buildConfiguration(process.env);
 ```dotenv
 NODE_ENV=development             # development | test | production (default development)
 PORT=3000
-LOG_LEVEL=info
+LOG_LEVEL=info                   # en desarrollo se recomienda debug
+LOG_FORMAT=json                  # json (default, producción) | pretty (solo desarrollo local)
 ```
+
+- `LOG_FORMAT=pretty` requiere `pino-pretty` en devDependencies y no se acepta con `NODE_ENV=production`. `.env.local` usa `pretty`; `.env.example` documenta `json`.
 
 ## Bases de datos (conexiones nombradas)
 

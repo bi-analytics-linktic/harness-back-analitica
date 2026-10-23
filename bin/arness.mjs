@@ -390,6 +390,7 @@ const DOCTOR_HINTS = {
   structure: 'AGENTS.md §4 y skill nest-base §4–§5. Adóptalo cuando convenga; no bloquea.',
   sql: 'AGENTS.md §6: SQL solo en *.sql.ts y sin escrituras.',
   env: 'harness/reference/configuracion.md (Dónde se leen las variables): process.env solo en src/config/configuration.ts.',
+  logging: 'harness/reference/contrato-http.md (Logging): LOG_FORMAT=json|pretty y pino-pretty solo en devDependencies.',
   quality: 'pnpm install, pnpm lint, pnpm build, pnpm test.',
   health: 'harness/reference/contrato-http.md (Health) y la conexión a cada BD.',
 };

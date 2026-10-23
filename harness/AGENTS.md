@@ -41,7 +41,7 @@ No es transaccional: no crea, modifica ni borra datos de negocio.
 | Calidad / tests | ESLint + Prettier; Jest + Supertest |
 | Entrega | Docker + Azure Pipelines |
 
-**Dependencias aprobadas:** las de la tabla, `pino-http`, `@types/pg`, `@linktic/arness-back` (dev) y las que genera `nest new`. Además `react` y `react-dom` (con `@types/react` y `@types/react-dom` en dev), **solo** para renderizar el monitor en el servidor (§10). Cualquier otra requiere aprobación humana registrada en `harness/decisiones/`. La base del proyecto se crea con la skill `nest-base`.
+**Dependencias aprobadas:** las de la tabla, `pino-http`, `@types/pg`, `@linktic/arness-back` (dev) y las que genera `nest new`. Además `react` y `react-dom` (con `@types/react` y `@types/react-dom` en dev), **solo** para renderizar el monitor en el servidor (§10), y `pino-pretty` **solo como devDependency**, para el formato legible de logs en desarrollo (§10). Cualquier otra requiere aprobación humana registrada en `harness/decisiones/`. La base del proyecto se crea con la skill `nest-base`.
 
 ## 3. Comandos
 
@@ -136,7 +136,7 @@ Un reporte es `GET /api/v1/<modulo>/<segmento>` y vive en una carpeta con estos 
 
 ## 10. Logging, health y monitor
 
-- **Logs:** JSON estructurado con `requestId` (`X-Request-Id`), con redacción de tokens, contraseñas y secretos. Nunca `console.log`.
+- **Logs:** JSON estructurado con `requestId` (`X-Request-Id`), con redacción de tokens, contraseñas y secretos. Nunca `console.log`. En desarrollo local, `LOG_FORMAT=pretty` muestra una línea legible por evento con los mismos campos y la misma redacción; por defecto y en producción siempre es `json` (la app no arranca con `pretty` y `NODE_ENV=production`).
 - **Health:** `GET /health` es público y reporta cada BD y la caché. Si una BD está caída responde `503`; si Redis está caído o deshabilitado, sigue en `200`.
 - **Monitor:** `GET /monitor`, fuera de `/api/v1`, es un tablero HTML renderizado en el servidor con React, sin JavaScript en el cliente. Se activa con `MONITOR_ENABLED=true` (si no, `404`). Pide la misma contraseña que `/auth/login` y abre una sesión en cookie `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/monitor`. Cada dato es un widget (`MonitorWidget`) y un widget que falla se muestra como "no disponible". **Nunca** muestra secretos, SQL, errores de PostgreSQL ni datos de negocio. Detalle: `harness/reference/contrato-http.md`; widgets nuevos: `harness/playbooks/new-monitor-widget.md`.
 

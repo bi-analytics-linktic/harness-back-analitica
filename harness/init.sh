@@ -536,6 +536,25 @@ EOF
   fi
 
   # ───────────────────────────────────────────────────────────────────────────
+  section "Logging"
+
+  # JSON en producción; formato legible solo en desarrollo (LOG_FORMAT=pretty, contrato-http.md "Logging").
+  if node -e "process.exit(require('./package.json').dependencies?.['pino-pretty'] ? 0 : 1)" 2>/dev/null; then
+    issue logging.pretty-production "pino-pretty está en dependencies: va solo en devDependencies (producción registra JSON)"
+  fi
+  if [ -f .env.example ]; then
+    if grep -q '^LOG_FORMAT=' .env.example; then
+      if grep -qE '^NODE_ENV=production' .env.example && grep -qE '^LOG_FORMAT=pretty' .env.example; then
+        issue logging.pretty-production ".env.example combina NODE_ENV=production con LOG_FORMAT=pretty (la app no arranca así)"
+      else
+        ok "LOG_FORMAT definido en .env.example"
+      fi
+    else
+      issue logging.format-env ".env.example no define LOG_FORMAT (json|pretty; configuracion.md, App)"
+    fi
+  fi
+
+  # ───────────────────────────────────────────────────────────────────────────
   if [ "$QUICK" -eq 1 ]; then
     section "Calidad"
     info "--quick: se omiten dependencias, lint, formato, build, tests y health"
