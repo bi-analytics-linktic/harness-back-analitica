@@ -75,7 +75,7 @@ AGENTS.md → harness/AGENTS.md · CLAUDE.md · GEMINI.md · .cursor/rules/ · .
 
 ```bash
 ./harness/init.sh                                   # o: pnpm arness verify
-pnpm arness doctor                                  # qué le falta al proyecto (no modifica nada)
+pnpm arness doctor                                  # novedades por adoptar y hallazgos (no modifica nada)
 pnpm arness decision new "Usar réplica de lectura"  # nueva decisión en harness/decisiones/
 pnpm arness status                                  # versión instalada e integridad de la base
 ```
@@ -98,7 +98,18 @@ Configuración opcional del repo en `harness/arness.config.json` (sync no la toc
 }
 ```
 
-`ignore` silencia un chequeo y exige un motivo. `required` hace que un chequeo falle aunque no haya `--strict`. Los ids aparecen entre corchetes en la salida de `init.sh`.
+`ignore` silencia un chequeo y exige un motivo. `required` hace que un chequeo falle aunque no haya `--strict`. Los ids aparecen entre corchetes en la salida de `init.sh`. `declined` (`{ "monitor": "No aplica a este cliente" }`) marca una novedad que el repo decidió no adoptar; también exige motivo.
+
+### `arness doctor`: novedades por adoptar
+
+Cada versión declara sus novedades en `harness/reference/novedades.json` (tipo **seguridad**, **recomendada** u **opcional**, con pasos, ADR y si requieren aprobación). `doctor` las cruza con `init.sh` y muestra, sin modificar nada:
+
+- versión instalada frente a la del paquete, y aviso si hay una más nueva;
+- novedades **por adoptar**, de seguridad a opcionales, con lo que falta y sus pasos;
+- novedades ya adoptadas y declinadas (`declined` en `harness/arness.config.json`);
+- el resto de los hallazgos de `init.sh`, por categoría.
+
+`--json` da el mismo resultado para agentes y pipelines; `--since 0.2.0` muestra solo lo posterior a esa versión; `--full` incluye lint, build, tests y health. Nunca termina en 1 por novedades sin adoptar, solo por críticos.
 
 ## Actualizar a una versión nueva
 
@@ -108,7 +119,7 @@ Al no haber registro, `pnpm up` no detecta versiones nuevas: se cambia el tag a 
 pnpm add -D "git+https://github.com/bi-analytics-linktic/harness-back.git#v0.2.0"
 pnpm arness sync --dry-run --diff   # ver qué cambiaría, línea a línea
 pnpm arness sync                    # aplicar (respalda la versión anterior)
-pnpm arness doctor                  # qué conviene adoptar de la versión nueva
+pnpm arness doctor                  # novedades de la versión nueva y cómo adoptarlas
 ./harness/init.sh
 git add -A && git commit -m "chore(harness): update to v0.2.0"
 ```

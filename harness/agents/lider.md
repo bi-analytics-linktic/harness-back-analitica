@@ -22,6 +22,7 @@ Sigues `AGENTS.md` y las decisiones `Aceptada` de `harness/decisiones/`. **No es
      - Si no existe, o su estado es `TERMINADO`, créalo o reinícialo desde `harness/reference/progress-plantilla.md`.
      - Si está `EN CURSO` o `BLOQUEADO`, muéstrale al humano el resumen y pregúntale si retomar ese trabajo o empezar uno nuevo.
    - Registra el resultado de `init.sh` en `harness/progress.md` (exit y número de advertencias).
+   - Si el harness se acaba de actualizar (`arness sync`), ejecuta `pnpm arness doctor` y muéstrale al humano las novedades por adoptar. No las conviertas en tareas salvo que el humano lo pida.
 2. **Contexto:** lee `harness/decisiones/README.md` y las decisiones relevantes.
 3. **Contrato:** para endpoints, confirma con el humano todo lo de AGENTS.md §15.1 **antes** de delegar. No supongas columnas, tablas ni reglas de negocio.
 4. **Plan:** divide el trabajo en tareas pequeñas (idealmente una por endpoint o pieza de `common/`). Cada tarea lleva archivos, playbook y criterios de aceptación. Escribe en `harness/progress.md` el objetivo, el contrato confirmado, la tabla de tareas y el detalle de cada tarea.

@@ -318,6 +318,13 @@ function cmdSync(opts) {
     for (const rel of [...added, ...updated]) showDiff(root, rel, next.get(rel).content);
     for (const rel of removed) showDiff(root, rel, null);
   }
+  const incoming = parseNovelties(next.get(NOVELTIES)?.content.toString('utf8')).filter(
+    (n) => compareVersions(n.since, manifest.version) > 0,
+  );
+  if (incoming.length) {
+    log(`\nNovedades desde ${manifest.version} (no se activan solas; detalle y pasos: arness doctor):`);
+    for (const n of incoming) log(`  · [${n.type}] ${n.title} (${n.id}, desde ${n.since})`);
+  }
   if (opts.dryRun) {
     log('\n(--dry-run: no se escribió nada. Usa --diff para ver los cambios línea a línea)');
     return;
@@ -396,6 +403,59 @@ const DOCTOR_HINTS = {
   health: 'harness/reference/contrato-http.md (Health) y la conexión a cada BD.',
 };
 
+// Catálogo de novedades adoptables (parte de la base): lo leen doctor y sync.
+const NOVELTIES = `${H}/reference/novedades.json`;
+const NOVELTY_TYPES = { seguridad: 'Seguridad', recomendada: 'Recomendadas', opcional: 'Opcionales' };
+
+/** Compara versiones x.y.z: negativo si a < b, 0 si son iguales, positivo si a > b. */
+function compareVersions(a, b) {
+  const pa = String(a).split('.').map(Number);
+  const pb = String(b).split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d) return d;
+  }
+  return 0;
+}
+
+/** Novedades de un catálogo (texto JSON); [] si no existe (bases anteriores a 0.2.0). */
+function parseNovelties(text) {
+  if (!text) return [];
+  const catalog = JSON.parse(text);
+  return Array.isArray(catalog.novedades) ? catalog.novedades : [];
+}
+
+function readRepoConfig(root) {
+  const abs = path.join(root, CONFIG);
+  if (!fs.existsSync(abs)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(abs, 'utf8'));
+  } catch {
+    return {}; // init.sh ya reporta el JSON inválido (config.invalid)
+  }
+}
+
+/**
+ * Clasifica cada novedad: adoptada (existen sus paths y init.sh no reporta sus checks), declinada
+ * (harness/arness.config.json → declined, con motivo) o pendiente, con los hallazgos que la delatan.
+ */
+function classifyNovelties(root, novelties, issues, declined) {
+  const out = { pending: [], adopted: [], declined: [], configErrors: [] };
+  for (const n of novelties) {
+    const reason = String(declined[n.id] ?? '').trim();
+    if (n.id in declined && !reason) out.configErrors.push(`declined.${n.id} sin motivo`);
+    if (reason) {
+      out.declined.push({ ...n, reason });
+      continue;
+    }
+    const findings = issues.filter((i) => (n.checks ?? []).includes(i.id));
+    const missingPaths = (n.paths ?? []).filter((p) => !fs.existsSync(path.join(root, p)));
+    if (!findings.length && !missingPaths.length) out.adopted.push(n);
+    else out.pending.push({ ...n, findings: [...missingPaths.map((p) => `No existe ${p}`), ...findings.map((i) => i.message)] });
+  }
+  return out;
+}
+
 function cmdDoctor(opts) {
   const root = findRoot();
   const manifest = readManifest(root);
@@ -409,9 +469,71 @@ function cmdDoctor(opts) {
     throw new CliError(`init.sh no devolvió JSON válido (¿versión anterior de la base?).\n${res.stderr.slice(-2000)}`);
   }
 
+  const catalogPath = path.join(root, NOVELTIES);
+  let novelties = parseNovelties(fs.existsSync(catalogPath) ? fs.readFileSync(catalogPath, 'utf8') : null);
+  if (opts.since) novelties = novelties.filter((n) => compareVersions(n.since, opts.since) > 0);
+  const declined = readRepoConfig(root).declined ?? {};
+  const nov = classifyNovelties(root, novelties, report.issues, typeof declined === 'object' ? declined : {});
+
+  // Los avisos de una novedad se muestran con ella; los fallos y críticos siguen en su sección.
+  const noveltyChecks = new Set(novelties.flatMap((n) => n.checks ?? []));
+  const others = report.issues.filter((i) => !(noveltyChecks.has(i.id) && (i.level === 'warning' || i.level === 'ignored')));
+  const newer = compareVersions(PKG.version, manifest.version) > 0;
+
+  if (opts.json) {
+    const pick = ({ id, type, since, title, why, steps, approval, adr, reference }) => ({ id, type, since, title, why, steps, approval, adr, reference });
+    process.stdout.write(
+      `${JSON.stringify(
+        {
+          schema: 1,
+          installed: manifest.version,
+          available: PKG.version,
+          newerAvailable: newer,
+          mode: report.mode,
+          base: { modified, missing },
+          novelties: {
+            pending: nov.pending.map((n) => ({ ...pick(n), findings: n.findings })),
+            adopted: nov.adopted.map((n) => n.id),
+            declined: nov.declined.map((n) => ({ id: n.id, reason: n.reason })),
+          },
+          configErrors: nov.configErrors,
+          issues: others,
+          summary: report.summary,
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    if (report.summary.critical) process.exitCode = 1;
+    return;
+  }
+
   log(`Harness ${manifest.package}@${manifest.version} · paquete disponible ${PKG.version}`);
+  if (newer) log(`  ⚠ Hay una versión más nueva del paquete: ejecuta arness sync (y después arness doctor)`);
   if (modified.length || missing.length) log(`  ⚠ Base distinta al manifiesto: ${modified.length} editados, ${missing.length} faltantes`);
   log(`Revisión ${opts.full ? 'completa' : 'rápida (usa --full para lint, build, tests y health)'} · modo ${report.mode}`);
+  for (const e of nov.configErrors) log(`  ⚠ ${CONFIG}: ${e} (se ignora)`);
+
+  if (nov.pending.length) {
+    log(`\n◆ Novedades por adoptar${opts.since ? ` (desde ${opts.since})` : ''}: ${nov.pending.length}`);
+    log('  No se activan solas: adóptalas cuando convenga, o declínalas con motivo en harness/arness.config.json → declined.');
+    for (const [type, label] of Object.entries(NOVELTY_TYPES)) {
+      const group = nov.pending.filter((n) => n.type === type);
+      if (!group.length) continue;
+      log(`\n  ${label}`);
+      for (const n of group) {
+        log(`    ● ${n.title} [${n.id}] · desde ${n.since}${n.adr ? ` · ADR ${n.adr}` : ''}`);
+        log(`      Por qué: ${n.why}`);
+        for (const f of n.findings) log(`      - ${f}`);
+        log('      Pasos:');
+        n.steps.forEach((step, i) => log(`        ${i + 1}. ${step}`));
+        if (n.approval) log(`      Requiere aprobación: ${n.approval}`);
+        if (n.reference) log(`      Referencia: ${n.reference}`);
+      }
+    }
+  }
+  if (nov.adopted.length) log(`\n✔ Novedades adoptadas: ${nov.adopted.map((n) => n.id).join(', ')}`);
+  if (nov.declined.length) log(`· Novedades declinadas: ${nov.declined.map((n) => `${n.id} (${n.reason})`).join('; ')}`);
 
   const levels = [
     ['critical', '✖ Críticos (bloquean)'],
@@ -419,7 +541,7 @@ function cmdDoctor(opts) {
     ['warning', '⚠ Advertencias'],
   ];
   for (const [level, title] of levels) {
-    const items = report.issues.filter((i) => i.level === level);
+    const items = others.filter((i) => i.level === level);
     if (!items.length) continue;
     log(`\n${title}: ${items.length}`);
     const byCat = new Map();
@@ -433,7 +555,7 @@ function cmdDoctor(opts) {
     }
   }
   if (report.summary.ignored) log(`\n· ${report.summary.ignored} chequeo(s) silenciado(s) en ${CONFIG}`);
-  if (!report.issues.some((i) => i.level !== 'ignored')) log('\n✔ Sin hallazgos: el proyecto cumple la versión instalada.');
+  if (!nov.pending.length && !others.some((i) => i.level !== 'ignored')) log('\n✔ Sin hallazgos: el proyecto cumple la versión instalada.');
   log('\nNo se modificó ningún archivo.');
   if (report.summary.critical) process.exitCode = 1;
 }
@@ -509,12 +631,14 @@ Uso:
   arness sync [--dry-run] [--diff] [--force] [--copy]
                                                    Actualiza la base (respalda la versión anterior)
   arness rollback [--dry-run] [--force]            Restaura la base desde el último respaldo
-  arness doctor [--full]                           Qué le falta al proyecto (solo lectura)
+  arness doctor [--full] [--json] [--since <x.y.z>]
+                                                   Novedades por adoptar y hallazgos (solo lectura)
   arness status [--check]                          Versión instalada e integridad de la base
   arness verify [opciones de init.sh]              Ejecuta ./harness/init.sh
   arness decision new "<título>"                   Crea una decisión en harness/decisiones/
   arness --version | --help
 
+Para no adoptar una novedad: harness/arness.config.json → "declined": { "<id>": "<motivo>" }.
 harness/decisiones/, harness/progress.md y harness/arness.config.json pertenecen al repo:
 sync y rollback nunca los modifican, ni tocan el código del proyecto.
 --copy crea copias en lugar de enlaces simbólicos (útil en Windows sin symlinks).`;
@@ -530,6 +654,11 @@ function parseFlags(argv) {
     else if (a === '--check') opts.check = true;
     else if (a === '--diff') opts.diff = true;
     else if (a === '--full') opts.full = true;
+    else if (a === '--json') opts.json = true;
+    else if (a === '--since') {
+      opts.since = argv[++i];
+      if (!/^\d+\.\d+\.\d+$/.test(opts.since ?? '')) throw new CliError('Uso: --since <x.y.z>');
+    }
     else if (a.startsWith('--')) throw new CliError(`Opción desconocida: ${a}`);
     else opts._.push(a);
   }

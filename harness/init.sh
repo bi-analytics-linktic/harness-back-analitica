@@ -16,7 +16,8 @@
 # Configuración del repo (opcional, sync nunca la toca): harness/arness.config.json
 #   { "strict": false,
 #     "ignore":   { "<id>": "<motivo>" },     silencia un chequeo
-#     "required": ["<id>"] }                  ese chequeo falla aunque no haya --strict
+#     "required": ["<id>"],                   ese chequeo falla aunque no haya --strict
+#     "declined": { "<novedad>": "<motivo>" } } novedad que el repo no adopta (lo lee arness doctor)
 #
 # Variables opcionales:
 #   HEALTH_URL          URL del health (default http://localhost:$PORT/health)

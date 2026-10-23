@@ -15,3 +15,4 @@ Decisiones de diseño **del paquete `@linktic/arness-back`**. No se instalan en 
 | [0009](0009-configuracion-centralizada.md) | Configuración centralizada: process.env solo en src/config/configuration.ts | Aceptada | 2026-10-23 |
 | [0010](0010-logs-json-y-formato-legible.md) | Logs: JSON en producción y formato legible en desarrollo | Aceptada | 2026-10-23 |
 | [0011](0011-documentacion-del-proyecto-en-docs.md) | Documentación del proyecto en docs/: técnico, evolutivo y pendientes | Aceptada | 2026-10-23 |
+| [0012](0012-doctor-con-catalogo-de-novedades.md) | doctor con catálogo de novedades por versión | Aceptada | 2026-10-23 |

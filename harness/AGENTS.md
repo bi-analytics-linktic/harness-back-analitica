@@ -14,7 +14,8 @@ Por defecto **los hallazgos son advertencias** (`⚠`, exit 0): el proyecto sigu
 - **Fallo (exit 1): no continúes.** Ocurre ante un fallo **crítico** (hoy solo `.env` o `.env.local` versionado en git), con `--strict` o con un chequeo marcado como `required` en `harness/arness.config.json`. Informa los fallos exactos y espera instrucciones. No entres en ciclos de reintentos.
 - Si el usuario pide corregir algo: **máximo 3 intentos**; después vuelve a informar.
 - Nunca modifiques `init.sh`, reglas de ESLint ni tests, ni silencies chequeos en `harness/arness.config.json`, para que pasen. Silenciar un chequeo es decisión humana y lleva motivo.
-- Opciones: `--strict`, `--json` (salida para máquinas), `--quick` (sin lint, build, tests ni health), `--e2e`, `--no-health` e `--install`. `pnpm arness doctor` resume qué le falta al proyecto sin modificar nada.
+- Opciones: `--strict`, `--json` (salida para máquinas), `--quick` (sin lint, build, tests ni health), `--e2e`, `--no-health` e `--install`. `pnpm arness doctor` resume, sin modificar nada, las **novedades por adoptar** de cada versión (seguridad, recomendadas y opcionales, con sus pasos) y el resto de los hallazgos.
+- **Después de `pnpm arness sync`:** ejecuta `pnpm arness doctor` e **informa** al humano las novedades por adoptar. No las implementes si no son parte de la tarea; adoptar o declinar una novedad es decisión humana (declinar va con motivo en `harness/arness.config.json` → `declined`).
 - Al terminar una tarea, `./harness/init.sh` debe terminar en 0 y sin advertencias nuevas respecto al inicio.
 
 ## 1. Qué es este proyecto
@@ -52,7 +53,7 @@ pnpm lint | pnpm lint:check        # --fix | sin corregir, 0 warnings
 pnpm format | pnpm format:check
 pnpm test | pnpm test:e2e | pnpm test:cov
 pnpm arness status | sync           # integridad y versión del harness | actualizar la base
-pnpm arness doctor | rollback       # qué le falta al proyecto (solo lectura) | volver a la base anterior
+pnpm arness doctor | rollback       # novedades por adoptar y hallazgos (solo lectura) | volver a la base anterior
 pnpm arness decision new "<título>" # nueva decisión en harness/decisiones/
 ```
 

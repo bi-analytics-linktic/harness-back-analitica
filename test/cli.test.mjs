@@ -530,6 +530,109 @@ describe('actualización segura de proyectos instalados', () => {
   });
 });
 
+const CATALOG = 'harness/reference/novedades.json';
+const doctorJson = (repo, args = [], pkg = PKG_ROOT) => {
+  const res = run(repo, ['doctor', '--json', ...args], pkg);
+  return { status: res.status, report: JSON.parse(res.stdout) };
+};
+
+describe('catálogo de novedades', () => {
+  const catalog = JSON.parse(fs.readFileSync(path.join(PKG_ROOT, CATALOG), 'utf8'));
+  const initShSource = fs.readFileSync(path.join(PKG_ROOT, 'harness/init.sh'), 'utf8');
+
+  it('cada novedad tiene los campos, tipo y versión válidos, y un id único', () => {
+    assert.equal(catalog.schema, 1);
+    const ids = catalog.novedades.map((n) => n.id);
+    assert.equal(new Set(ids).size, ids.length, 'ids duplicados');
+    for (const n of catalog.novedades) {
+      assert.match(n.id, /^[a-z0-9-]+$/, n.id);
+      assert.match(n.since, /^\d+\.\d+\.\d+$/, n.id);
+      assert.ok(['seguridad', 'recomendada', 'opcional'].includes(n.type), n.id);
+      for (const key of ['title', 'why']) assert.ok(n[key]?.trim(), `${n.id}: falta ${key}`);
+      assert.ok(Array.isArray(n.steps) && n.steps.length, `${n.id}: sin pasos`);
+      assert.ok(Array.isArray(n.checks) && Array.isArray(n.paths), n.id);
+      assert.ok(n.checks.length || n.paths.length, `${n.id}: sin forma de detectar la adopción`);
+    }
+  });
+
+  it('los checks existen en init.sh y cada ADR existe en docs/adr/', () => {
+    for (const n of catalog.novedades) {
+      for (const id of n.checks) assert.ok(new RegExp(`(issue|need_file|need_dir) ${id.replace('.', '\\.')} `).test(initShSource), `${n.id}: ${id} no está en init.sh`);
+      if (n.adr) assert.ok(fs.readdirSync(path.join(PKG_ROOT, 'docs/adr')).some((f) => f.startsWith(`${n.adr}-`)), `${n.id}: ADR ${n.adr}`);
+    }
+  });
+});
+
+describe('arness doctor: novedades', () => {
+  it('lista las novedades por adoptar por tipo, sin modificar nada y en 0', () => {
+    const repo = legacyProject();
+    run(repo, ['init']);
+    const before = projectHashes(repo);
+    const res = run(repo, ['doctor']);
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /◆ Novedades por adoptar: \d+/);
+    assert.match(res.stdout, /Seguridad\n {4}● CORS con allowlist por entorno \[cors-allowlist\] · desde \d+\.\d+\.\d+ · ADR 0006/);
+    assert.match(res.stdout, /Pasos:\n {8}1\. /);
+    assert.match(res.stdout, /Requiere aprobación: pino-pretty/);
+    assert.doesNotMatch(res.stdout, /\[security\.cors-env\]/, 'los avisos de una novedad no se repiten en Advertencias');
+    assert.deepEqual(projectHashes(repo), before);
+  });
+
+  it('--json: adopta, declina con motivo y filtra con --since', () => {
+    const repo = legacyProject();
+    run(repo, ['init']);
+    let { status, report } = doctorJson(repo);
+    assert.equal(status, 0);
+    const pending = report.novelties.pending.map((n) => n.id);
+    assert.ok(pending.includes('project-docs') && pending.includes('cors-allowlist'), JSON.stringify(pending));
+    const monitor = report.novelties.pending.find((n) => n.id === 'monitor');
+    assert.equal(monitor.type, 'opcional');
+    assert.deepEqual(monitor.findings, ['No existe src/common/monitor'], 'sin carpeta, el monitor está pendiente solo por ella');
+    assert.equal(report.installed, report.available);
+    assert.equal(report.newerAvailable, false);
+    assert.ok(!report.issues.some((i) => i.id === 'docs.files'), 'los avisos de una novedad van con ella');
+
+    fs.cpSync(path.join(PKG_ROOT, 'harness/skills/nest-base/templates/docs'), path.join(repo, 'docs'), { recursive: true });
+    writeFiles(repo, { 'harness/arness.config.json': JSON.stringify({ declined: { 'log-format': 'Usamos JSON también en local', 'cors-allowlist': '' } }) });
+    ({ report } = doctorJson(repo));
+    assert.ok(report.novelties.adopted.includes('project-docs'));
+    assert.deepEqual(report.novelties.declined, [{ id: 'log-format', reason: 'Usamos JSON también en local' }]);
+    assert.ok(report.novelties.pending.some((n) => n.id === 'cors-allowlist'), 'declinar sin motivo no cuenta');
+    assert.deepEqual(report.configErrors, ['declined.cors-allowlist sin motivo']);
+
+    ({ report } = doctorJson(repo, ['--since', '99.0.0']));
+    assert.deepEqual(report.novelties, { pending: [], adopted: [], declined: [] });
+    assert.equal(run(repo, ['doctor', '--since', 'x']).status, 1);
+  });
+
+  it('con una base anterior sin catálogo sigue funcionando', () => {
+    const repo = legacyProject();
+    const v1 = packageCopy('0.1.0', (dir) => fs.rmSync(path.join(dir, CATALOG)));
+    run(repo, ['init'], v1);
+    const { status, report } = doctorJson(repo, [], v1);
+    assert.equal(status, 0);
+    assert.deepEqual(report.novelties.pending, []);
+    assert.ok(report.issues.some((i) => i.id === 'docs.files'));
+  });
+
+  it('sync anuncia las novedades de la versión destino; doctor avisa si hay una versión más nueva', () => {
+    const repo = legacyProject();
+    const v1 = packageCopy('0.1.0', (dir) => fs.rmSync(path.join(dir, CATALOG)));
+    const v2 = packageCopy('0.2.0');
+    run(repo, ['init'], v1);
+    assert.match(run(repo, ['doctor'], v2).stdout, /Hay una versión más nueva del paquete/);
+
+    const dry = run(repo, ['sync', '--dry-run'], v2);
+    assert.match(dry.stdout, /Novedades desde 0\.1\.0/);
+    assert.match(dry.stdout, /\[seguridad\] CORS con allowlist por entorno \(cors-allowlist/);
+    const before = projectHashes(repo);
+    assert.equal(run(repo, ['sync'], v2).status, 0);
+    assert.deepEqual(projectHashes(repo), before, 'sync solo escribe la base');
+    assert.ok(doctorJson(repo, [], v2).report.novelties.pending.length > 0);
+    assert.doesNotMatch(run(repo, ['sync'], v2).stdout, /Novedades desde/, 'sin cambio de versión no anuncia nada');
+  });
+});
+
 describe('arness decision new', () => {
   it('numera correlativamente, rellena la plantilla y actualiza el índice', () => {
     const repo = newRepo();

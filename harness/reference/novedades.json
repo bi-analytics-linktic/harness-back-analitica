@@ -1,0 +1,107 @@
+{
+  "schema": 1,
+  "description": "Novedades adoptables por versión del harness. Las lee `arness doctor` (qué falta adoptar) y `arness sync` (qué trae la versión). Tipos: seguridad | recomendada | opcional. Una novedad está adoptada cuando existen sus `paths` y init.sh no reporta ninguno de sus `checks`.",
+  "novedades": [
+    {
+      "id": "cors-allowlist",
+      "since": "0.2.0",
+      "type": "seguridad",
+      "title": "CORS con allowlist por entorno",
+      "why": "Sin allowlist, cualquier sitio web puede llamar la API desde el navegador de un usuario autenticado.",
+      "checks": ["security.cors-env", "security.cors", "security.cors-open"],
+      "paths": [],
+      "approval": null,
+      "steps": [
+        "Copia harness/skills/nest-base/templates/cors/ (cors.ts y su spec) a src/config/ y valida CORS_ORIGINS al arrancar.",
+        "En src/main.ts usa app.enableCors(buildCorsOptions(...)) con los valores validados.",
+        "Agrega CORS_ORIGINS y CORS_MAX_AGE_SECONDS a .env.example y .env.local, y define los orígenes de cada entorno antes de desplegar."
+      ],
+      "adr": "0006",
+      "reference": "harness/reference/contrato-http.md (CORS)"
+    },
+    {
+      "id": "eslint-boundaries",
+      "since": "0.2.0",
+      "type": "recomendada",
+      "title": "Fronteras de arquitectura verificadas por ESLint",
+      "why": "Evita que common/ dependa de los módulos y que un módulo o cliente importe de otro.",
+      "checks": ["architecture.eslint-boundaries"],
+      "paths": ["eslint.boundaries.mjs"],
+      "approval": null,
+      "steps": [
+        "Copia harness/skills/nest-base/templates/eslint.boundaries.mjs a la raíz.",
+        "Impórtala en eslint.config.mjs y agrega ...architectureBoundaries.",
+        "Si aparecen imports entre módulos, mueve lo compartido a src/common/ cuando toques ese módulo."
+      ],
+      "adr": "0007",
+      "reference": "harness/AGENTS.md §4"
+    },
+    {
+      "id": "monitor",
+      "since": "0.2.0",
+      "type": "opcional",
+      "title": "Tablero monitor (GET /monitor)",
+      "why": "Muestra el estado técnico del backend (endpoints, salud) sin exponer datos de negocio.",
+      "checks": ["security.monitor-env", "security.monitor-guard"],
+      "paths": ["src/common/monitor"],
+      "approval": "react y react-dom (aprobadas en AGENTS.md §2 solo para el monitor); registra la adopción en harness/decisiones/ si el proyecto aún no las usa.",
+      "steps": [
+        "Copia harness/skills/nest-base/templates/monitor/ a src/common/monitor/ y registra MonitorModule.",
+        "Excluye monitor del prefijo global y haz que JwtAuthGuard omita IS_MONITOR_ROUTE_KEY.",
+        "Agrega MONITOR_ENABLED=false y MONITOR_SESSION_EXPIRES_IN=15m a .env.example y .env.local."
+      ],
+      "adr": "0008",
+      "reference": "harness/playbooks/new-monitor-widget.md"
+    },
+    {
+      "id": "env-config",
+      "since": "0.2.0",
+      "type": "recomendada",
+      "title": "Configuración centralizada en src/config/configuration.ts",
+      "why": "Toda la configuración tipada en un solo lugar, sin process.env disperso ni secretos con valor por defecto.",
+      "checks": ["env.configuration-file", "env.process-env", "env.eslint"],
+      "paths": [],
+      "approval": null,
+      "steps": [
+        "Copia harness/skills/nest-base/templates/config/ (configuration.ts y su spec) a src/config/ y regístrala con ConfigModule.forRoot({ load: [configuration] }).",
+        "Cambia, módulo por módulo, cada process.env.X por ConfigService<AppConfig, true>.",
+        "Actualiza eslint.boundaries.mjs desde la plantilla y agrega ...configBoundaries en eslint.config.mjs."
+      ],
+      "adr": "0009",
+      "reference": "harness/reference/configuracion.md (Dónde se leen las variables)"
+    },
+    {
+      "id": "log-format",
+      "since": "0.2.0",
+      "type": "opcional",
+      "title": "Logs legibles en desarrollo (LOG_FORMAT=pretty)",
+      "why": "Una línea legible por petición en la terminal local; producción sigue en JSON.",
+      "checks": ["logging.format-env"],
+      "paths": [],
+      "approval": "pino-pretty, solo como devDependency (aprobada en AGENTS.md §2).",
+      "steps": [
+        "pnpm add -D pino-pretty",
+        "Copia harness/skills/nest-base/templates/logging/ a src/common/logging/ y usa buildLoggerParams en LoggerModule.forRootAsync.",
+        "Agrega LOG_FORMAT=json a .env.example y LOG_FORMAT=pretty a .env.local."
+      ],
+      "adr": "0010",
+      "reference": "harness/reference/contrato-http.md (Logging)"
+    },
+    {
+      "id": "project-docs",
+      "since": "0.2.0",
+      "type": "recomendada",
+      "title": "Documentación del proyecto en docs/ (técnico, evolutivo y pendientes)",
+      "why": "Negocio ve lo entregado en EVOLUTIVO.md y lo abierto queda en PENDIENTES.md, sin mezclarse.",
+      "checks": ["docs.files"],
+      "paths": [],
+      "approval": null,
+      "steps": [
+        "Copia harness/skills/nest-base/templates/docs/ a docs/.",
+        "Completa docs/TECNICO.md con lo que ya existe y, si quieres, resume lo entregado en docs/EVOLUTIVO.md."
+      ],
+      "adr": "0011",
+      "reference": "harness/AGENTS.md §12"
+    }
+  ]
+}
