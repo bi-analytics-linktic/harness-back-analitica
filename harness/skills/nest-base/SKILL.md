@@ -70,11 +70,11 @@ pnpm add -D @types/pg @types/react @types/react-dom pino-pretty
 - `react` y `react-dom` son solo para el monitor (`src/common/monitor/`); no se usan en ningún otro lugar.
 - `pino-pretty` va **solo en devDependencies**: formato legible de logs en desarrollo (`LOG_FORMAT=pretty`).
 - Si pnpm avisa que ignoró scripts de build (`pnpm approve-builds`), muestra la lista al humano y espera su aprobación.
-- Agrega el harness como devDependency desde git, con el tag de la versión del manifiesto (no hay registro npm):
+- Agrega el harness como devDependency desde npm, con la versión exacta del manifiesto:
   ```bash
-  pnpm add -D "git+https://github.com/bi-analytics-linktic/harness-back.git#v$(node -p "require('./harness/.arness.json').version")"
+  pnpm add -D "@linktic/arness-back@$(node -p "require('./harness/.arness.json').version")"
   ```
-  Requiere acceso de lectura al repo en GitHub. Si falla por autenticación, detente e informa; no lo quites de la lista.
+  Si falla (red o registro), detente e informa; no lo quites de la lista.
 - Cualquier paquete adicional requiere aprobación explícita y una decisión en `harness/decisiones/`.
 
 ## 4. Toolchain, ESLint y Prettier

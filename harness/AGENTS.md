@@ -2,7 +2,7 @@
 
 Fuente única de instrucciones para cualquier agente IA (Claude Code, Codex, Gemini CLI, Cursor u otro). Vive en `harness/AGENTS.md`; el `AGENTS.md` de la raíz es un enlace simbólico a este archivo, y `CLAUDE.md`, `GEMINI.md` y `.cursor/rules/` solo apuntan aquí. **Todas las rutas son relativas a la raíz del proyecto.** Los detalles de consulta están en `harness/reference/` y se leen **solo cuando la tarea lo requiere**.
 
-> **Base del harness: la instala y actualiza el paquete `@linktic/arness-back` (desde git; `pnpm arness sync`) y no se edita en este repo.** Toda decisión posterior va en `harness/decisiones/` (§17), que pertenece al repo. Lee `harness/decisiones/README.md` antes de trabajar.
+> **Base del harness: la instala y actualiza el paquete `@linktic/arness-back` (desde npm; `pnpm arness sync`) y no se edita en este repo.** Toda decisión posterior va en `harness/decisiones/` (§17), que pertenece al repo. Lee `harness/decisiones/README.md` antes de trabajar.
 
 ## 0. Antes de empezar: `./harness/init.sh`
 

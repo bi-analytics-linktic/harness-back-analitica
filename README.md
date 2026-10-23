@@ -7,49 +7,45 @@ Harness de agentes IA para los **backends NestJS de analítica**. Funciona con C
 - la skill `nest-base`;
 - playbooks y referencias.
 
-Se instala **directamente desde este repositorio git**, sin registro npm, fijando un tag de versión (`vX.Y.Z`). Las **decisiones de cada proyecto** (`harness/decisiones/`) quedan en el repo que lo instala, y el paquete nunca las modifica.
+Se publica en el **registro público de npm** como `@linktic/arness-back` (ADR 0013); cada versión tiene además su tag git `vX.Y.Z`. Las **decisiones de cada proyecto** (`harness/decisiones/`) quedan en el repo que lo instala, y el paquete nunca las modifica.
 
 ## Requisitos
 
 - Node.js ≥ 20, pnpm y git.
-- Acceso de lectura a `github.com/bi-analytics-linktic/harness-back`: SSH, `gh auth login` o Git Credential Manager.
 
-Para comprobar el acceso:
+Para ver la última versión publicada:
 
 ```bash
-git ls-remote https://github.com/bi-analytics-linktic/harness-back.git
+pnpm view @linktic/arness-back version
 ```
 
 ## Instalación
 
-Elige el caso según el estado del repo donde vas a instalarlo. En los comandos, `v0.1.0` es la versión; usa la última de [CHANGELOG.md](CHANGELOG.md).
+Elige el caso según el estado del repo donde vas a instalarlo. En los comandos, `0.2.0` es la versión; usa la última de [CHANGELOG.md](CHANGELOG.md).
 
 ### A. Repo nuevo, antes de crear el proyecto NestJS (sin `package.json`)
 
-`pnpm add` crearía un `package.json` antes que Nest. Por eso el harness se instala desde un clon temporal del tag:
+`pnpm add` crearía un `package.json` antes que Nest. Por eso el harness se instala con `pnpm dlx`, que ejecuta el CLI sin agregarlo al proyecto:
 
 ```bash
 cd mi-backend                       # carpeta del nuevo backend (con git init hecho)
 
-git clone --depth 1 --branch v0.1.0 \
-  https://github.com/bi-analytics-linktic/harness-back.git /tmp/arness-back
-node /tmp/arness-back/bin/arness.mjs init
-rm -rf /tmp/arness-back
+pnpm dlx @linktic/arness-back@0.2.0 init
 
 ./harness/init.sh                   # debe quedar en verde (modo solo harness)
 ```
 
-Después, pide a tu agente **"crea la base del proyecto NestJS"** (skill `nest-base`). Por ejemplo en Claude Code: `claude --agent lider`, o `/nest-base`. La skill crea el proyecto en la raíz y agrega el harness como devDependency desde git con el mismo tag.
+Después, pide a tu agente **"crea la base del proyecto NestJS"** (skill `nest-base`). Por ejemplo en Claude Code: `claude --agent lider`, o `/nest-base`. La skill crea el proyecto en la raíz y agrega el harness como devDependency con la misma versión.
 
 ### B. Proyecto que ya tiene `package.json`
 
 ```bash
-pnpm add -D "git+https://github.com/bi-analytics-linktic/harness-back.git#v0.1.0"
+pnpm add -D @linktic/arness-back@0.2.0
 pnpm arness init
 ./harness/init.sh
 ```
 
-Con SSH en lugar de HTTPS: `pnpm add -D "git+ssh://git@github.com/bi-analytics-linktic/harness-back.git#v0.1.0"`.
+Si el proyecto lo tenía instalado desde git (`git+https://...#vX.Y.Z`), basta con el `pnpm add` de arriba y `pnpm arness sync`.
 
 ### Qué hace `arness init`
 
@@ -113,15 +109,15 @@ Cada versión declara sus novedades en `harness/reference/novedades.json` (tipo 
 
 ## Actualizar a una versión nueva
 
-Al no haber registro, `pnpm up` no detecta versiones nuevas: se cambia el tag a mano.
+`pnpm outdated @linktic/arness-back` muestra si hay una versión nueva.
 
 ```bash
-pnpm add -D "git+https://github.com/bi-analytics-linktic/harness-back.git#v0.2.0"
+pnpm add -D @linktic/arness-back@0.3.0
 pnpm arness sync --dry-run --diff   # ver qué cambiaría, línea a línea
 pnpm arness sync                    # aplicar (respalda la versión anterior)
 pnpm arness doctor                  # novedades de la versión nueva y cómo adoptarlas
 ./harness/init.sh
-git add -A && git commit -m "chore(harness): update to v0.2.0"
+git add -A && git commit -m "chore(harness): update to v0.3.0"
 ```
 
 Actualizar **no rompe un proyecto que funciona**: las reglas nuevas aparecen como advertencias y cada versión trae una sección "Para proyectos existentes" en el CHANGELOG. Para volver atrás: `pnpm arness rollback`.
@@ -140,16 +136,22 @@ pnpm test               # tests del CLI (node --test)
 pnpm pack:check         # archivos que se instalan
 ```
 
-- La base que se distribuye es todo `harness/`, salvo las decisiones numeradas y `progress.md`.
+- La base que se distribuye es todo `harness/`, salvo las decisiones numeradas y `progress.md`. **El paquete es público:** nada de secretos, datos de clientes ni información interna sensible.
 - Las decisiones de diseño **del harness** están en `docs/adr/` y no se instalan.
 
 ### Publicar una versión
 
-1. Actualiza `CHANGELOG.md`.
-2. Sube la versión con `pnpm version <patch|minor|major>`, que crea el commit y el tag `vX.Y.Z`:
+Requiere una cuenta npm con permiso de escritura en el scope `@linktic` (`pnpm login`; comprueba con `pnpm whoami`).
+
+1. Actualiza `CHANGELOG.md` y, si aplica, `harness/reference/novedades.json`.
+2. Verifica: `pnpm test`, `./harness/init.sh --strict` y `pnpm pack:check` (revisa la lista: todo lo que aparece será público).
+3. Sube la versión con `pnpm version <patch|minor|major>`, que crea el commit y el tag `vX.Y.Z`:
    - **patch:** correcciones;
    - **minor:** reglas, playbooks o skills compatibles;
    - **major:** cambios de estructura o rutas.
-3. Publica con `git push --follow-tags`. El tag es la versión instalable; no hay nada más que publicar.
+4. Publica en npm con `pnpm publish` (desde `main`, con el árbol limpio; `publishConfig` ya fija `access: public`).
+5. Sube el commit y el tag con `git push --follow-tags`.
+
+Una versión publicada no se puede reemplazar: si algo sale mal, publica una nueva.
 
 El CI (`azure-pipelines.yml`) corre los tests y valida que el tag coincida con `package.json`.

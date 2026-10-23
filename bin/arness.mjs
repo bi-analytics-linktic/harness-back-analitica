@@ -10,8 +10,8 @@ import { fileURLToPath } from 'node:url';
 
 const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PKG = JSON.parse(fs.readFileSync(path.join(PKG_ROOT, 'package.json'), 'utf8'));
-// Se instala desde git (sin registro): <repo>#v<versión>.
-const INSTALL_SPEC = `${PKG.repository.url}#v${PKG.version}`;
+// Se publica en el registro público de npm (ADR 0013).
+const INSTALL_SPEC = `${PKG.name}@${PKG.version}`;
 
 const H = 'harness';
 const MANIFEST = `${H}/.arness.json`;

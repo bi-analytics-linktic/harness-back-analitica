@@ -1,5 +1,5 @@
 # CI de @linktic/arness-back: tests del CLI y verificación del harness.
-# No hay registro npm: los backends instalan el paquete desde git con un tag vX.Y.Z.
+# El paquete se publica en el registro público de npm (pnpm publish) desde un tag vX.Y.Z (ADR 0013).
 trigger:
   branches:
     include: [main]

@@ -7,6 +7,11 @@
     "url": "git+https://github.com/bi-analytics-linktic/harness-back.git"
   },
   "type": "module",
+  "homepage": "https://github.com/bi-analytics-linktic/harness-back#readme",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "bin": {
     "arness": "bin/arness.mjs"
   },
@@ -23,7 +28,7 @@
   "scripts": {
     "test": "node --test",
     "verify": "./harness/init.sh",
-    "pack:check": "npm pack --dry-run"
+    "pack:check": "pnpm pack --dry-run"
   },
   "engines": {
     "node": ">=20"

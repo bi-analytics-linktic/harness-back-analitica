@@ -1,6 +1,6 @@
 # 0004. Instalar el paquete desde git, sin registro npm
 
-- **Estado:** Aceptada
+- **Estado:** Reemplazada por 0013
 - **Fecha:** 2026-09-25
 - **Decidido por:** Equipo backend de Analítica
 - **Alcance:** Distribución de `@linktic/arness-back`
