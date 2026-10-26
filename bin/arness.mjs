@@ -393,7 +393,7 @@ const DOCTOR_HINTS = {
   git: 'Usa un repo git propio; si hay secretos versionados, sácalos del índice (git rm --cached) y rota las credenciales.',
   package: 'Repo fuente del paquete: revisa bin/, CHANGELOG.md y docs/adr/.',
   install: 'Instala o actualiza el paquete (README de @bi-analytics/arness-back) y ejecuta arness sync.',
-  toolchain: 'Skill nest-base §1 y §4: .nvmrc, packageManager, lockfile y scripts.',
+  toolchain: 'Skill nest-base §1 y §4: .nvmrc, packageManager, lockfile y scripts. Nueva LTS de Node: harness/playbooks/update-node-lts.md (análisis y aprobación humana).',
   structure: 'AGENTS.md §4 y skill nest-base §4–§5. Adóptalo cuando convenga; no bloquea.',
   sql: 'AGENTS.md §6: SQL solo en *.sql.ts y sin escrituras.',
   docs: 'AGENTS.md §12: copia harness/skills/nest-base/templates/docs/ (EVOLUTIVO.md solo avance; PENDIENTES.md lo abierto).',

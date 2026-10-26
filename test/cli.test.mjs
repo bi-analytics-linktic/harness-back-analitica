@@ -470,6 +470,45 @@ describe('init.sh: documentación del proyecto', () => {
   });
 });
 
+describe('init.sh: última LTS de Node', () => {
+  /** init.sh --quick --json con la LTS fijada por NODE_LTS_VERSION (sin red). */
+  const ltsReport = (repo, lts) => {
+    const res = spawnSync('bash', ['harness/init.sh', '--quick', '--json'], {
+      cwd: repo,
+      encoding: 'utf8',
+      env: { ...process.env, NODE_LTS_VERSION: lts },
+    });
+    return { status: res.status, report: JSON.parse(res.stdout), stderr: res.stderr };
+  };
+
+  it('advierte toolchain.node-lts si .nvmrc está en un major anterior, sin bloquear', () => {
+    const repo = legacyProject();
+    run(repo, ['init']);
+    writeFiles(repo, { '.nvmrc': 'v24.11.0\n' });
+    const { status, report } = ltsReport(repo, 'v26.11.0');
+    assert.equal(status, 0);
+    const [issue] = issuesOf(report, 'toolchain.node-lts');
+    assert.equal(issue.level, 'warning');
+    assert.match(issue.message, /v26\.11\.0 .*v24\.11\.0.*update-node-lts\.md/);
+  });
+
+  it('no advierte en la misma LTS, y NODE_LTS_VERSION=off desactiva la comparación', () => {
+    const repo = legacyProject();
+    run(repo, ['init']);
+    writeFiles(repo, { '.nvmrc': 'v24.11.0\n' });
+    let { report, stderr } = ltsReport(repo, 'v24.22.1');
+    assert.ok(!issueIds(report).includes('toolchain.node-lts'));
+    assert.match(stderr, /actualizarla dentro de la misma LTS es opcional/);
+
+    ({ report } = ltsReport(repo, 'v24.11.0'));
+    assert.ok(!issueIds(report).includes('toolchain.node-lts'));
+
+    ({ report, stderr } = ltsReport(repo, 'off'));
+    assert.ok(!issueIds(report).includes('toolchain.node-lts'));
+    assert.match(stderr, /NODE_LTS_VERSION=off/);
+  });
+});
+
 describe('actualización segura de proyectos instalados', () => {
   it('compatibilidad: sync no toca archivos del proyecto, init.sh sigue en 0 y rollback restaura la base', () => {
     const repo = legacyProject();

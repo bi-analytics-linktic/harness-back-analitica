@@ -22,6 +22,8 @@
 # Variables opcionales:
 #   HEALTH_URL          URL del health (default http://localhost:$PORT/health)
 #   HEALTH_TIMEOUT_S    Segundos de espera al arrancar la app (default 30)
+#   NODE_LTS_VERSION    Última LTS de Node con la que se compara .nvmrc (default: se consulta
+#                       nodejs.org; sin red se omite). "off" desactiva la comparación
 #
 # Salida: 0 = operativo (puede haber advertencias) · 1 = fallo crítico o --strict con hallazgos · 2 = uso incorrecto
 
@@ -307,10 +309,12 @@ elif [ ! -f package.json ]; then
 else
   section "Toolchain"
 
+  want=''
+  [ -f .nvmrc ] && want="$(tr -d '[:space:]v' < .nvmrc)"
   if command -v node >/dev/null 2>&1; then
     node_v="$(node -v)"
     if [ -f .nvmrc ]; then
-      want="$(tr -d '[:space:]v' < .nvmrc)"; have="${node_v#v}"
+      have="${node_v#v}"
       if [ "${want%%.*}" = "${have%%.*}" ]; then ok "Node $node_v (esperado v$want por .nvmrc)"
       else issue toolchain.node "Node $node_v no coincide con .nvmrc (v$want)"; fi
     else
@@ -319,6 +323,30 @@ else
   else
     issue toolchain.node "Node no está instalado"
   fi
+
+  # Última LTS publicada en nodejs.org. Sin red se omite: nunca bloquea por conectividad.
+  case "${want%%.*}" in ''|*[!0-9]*) ;; *)
+    if [ "${NODE_LTS_VERSION:-}" = off ]; then
+      info "Comparación con la última LTS de Node desactivada (NODE_LTS_VERSION=off)"
+    else
+      lts="${NODE_LTS_VERSION:-$(curl -s -m 5 https://nodejs.org/dist/index.json 2>/dev/null | node -e '
+        let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => {
+          try { const r = JSON.parse(s).find((x) => x.lts); if (r) console.log(r.version); } catch {}
+        })' 2>/dev/null)}"
+      lts="${lts#v}"
+      case "${lts%%.*}" in
+        ''|*[!0-9]*) info "No se pudo consultar la última LTS de Node (sin red o respuesta inválida): se omite" ;;
+        *)
+          if [ "${want%%.*}" -lt "${lts%%.*}" ]; then
+            issue toolchain.node-lts "Hay una LTS de Node más nueva: v$lts (.nvmrc fija v$want). No la actualices sin aprobación: analízala con $H/playbooks/update-node-lts.md y preséntale el análisis al humano"
+          elif [ "${want%%.*}" -eq "${lts%%.*}" ] && [ "$want" != "$lts" ]; then
+            info "Node v$lts es la última versión de la LTS v${lts%%.*}; .nvmrc fija v$want (actualizarla dentro de la misma LTS es opcional)"
+          else
+            ok ".nvmrc está en la última LTS de Node (v$lts)"
+          fi ;;
+      esac
+    fi ;;
+  esac
 
   if command -v pnpm >/dev/null 2>&1; then ok "pnpm $(pnpm -v)"
   else issue toolchain.pnpm "pnpm no está instalado"; fi

@@ -33,7 +33,7 @@ Revisa el diff contra `AGENTS.md` y reporta cada hallazgo con archivo y línea, 
 
 - [ ] Un spec por archivo, incluidos los casos HIT/MISS/BYPASS
 - [ ] Postman, `FRONT.md` y el README del módulo actualizados
-- [ ] Entrada nueva al final de `docs/EVOLUTIVO.md` (sin reescribir las anteriores) y lo abierto en `docs/PENDIENTES.md`
+- [ ] Entrada nueva al final de `docs/EVOLUTIVO.md` (sin reescribir las anteriores), con fecha, hora y zona de Bogotá y el responsable (`git config user.name`) y lo abierto en `docs/PENDIENTES.md`
 - [ ] `docs/EVOLUTIVO.md` no contiene pendientes, bloqueos, stoppers ni riesgos
 - [ ] Variables nuevas en `.env.example`, `.env.local`, la validación y `src/config/configuration.ts` (`AppConfig`)
 - [ ] `./harness/init.sh` termina en 0 sin advertencias nuevas; las preexistentes se reportan, no se corrigen fuera de alcance

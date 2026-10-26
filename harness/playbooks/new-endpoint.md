@@ -80,7 +80,7 @@ Agrega el endpoint, su conexión y el origen de datos.
 
 ### docs/
 
-- `docs/EVOLUTIVO.md`: agrega al final una entrada `## <fecha> · <cliente>/<modulo>` con lo entregado en lenguaje de negocio (qué reporte quedó disponible), el endpoint y la referencia. Solo avance.
+- `docs/EVOLUTIVO.md`: agrega al final una entrada `## <AAAA-MM-DD HH:mm -0500> · <cliente>/<modulo>` (hora de Bogotá) con el responsable (`git config user.name`), lo entregado en lenguaje de negocio (qué reporte quedó disponible), el endpoint y la referencia. Solo avance.
 - `docs/PENDIENTES.md`: lo que quedó abierto (por ejemplo, una vista que aún no existe en la BD o un filtro aplazado).
 
 ## 4. Cierre
