@@ -10,6 +10,7 @@ Revisa el diff contra `AGENTS.md` y reporta cada hallazgo con archivo y línea, 
 - [ ] Un endpoint nuevo sin guard JWT, o un `@Public()` fuera de `login`, `refresh` o `health`
 - [ ] CORS abierto: `enableCors()` sin opciones, `origin: true`, `'*'`, reflejar el `Origin`, `credentials: true`, o `CORS_ORIGINS` con comodín
 - [ ] El monitor sin `MonitorSessionGuard`, marcado `@Public()`, dentro de `/api/v1`, con `<script>`, o un widget que muestra secretos, SQL, errores crudos o datos de negocio
+- [ ] `/auth/login` o `/monitor/login` sin `LoginAttemptLimiter`, un refresh que extiende la sesión (no copia `auth_time`), `src/main.ts` sin `securityHeaders()` o con `trust proxy` en `true`
 - [ ] Tokens, contraseñas o secretos en logs, respuestas, código o commits
 - [ ] `pino-pretty` en `dependencies` (va en devDependencies) o `LOG_FORMAT=pretty` para producción
 - [ ] Cambios en `.env`, o `.env.local` incluido en el commit

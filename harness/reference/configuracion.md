@@ -16,7 +16,7 @@ export function buildConfiguration(env: Env): AppConfig {
   return {
     app: { nodeEnv: text(env, 'NODE_ENV', 'development'), port: int(env, 'PORT', 3000) },
     databases: parseDatabases(env), // DATABASES=MAIN,REPORTS → { MAIN: { host, port, ... }, REPORTS: {...} }
-    auth: { accessToken: required(env, 'ACCESS_TOKEN'), jwt: { accessSecret: required(env, 'JWT_ACCESS_SECRET'), ... } },
+    auth: parseAuthConfig(env), // src/config/auth.ts: secretos, límite de intentos y vida de la sesión
     // cache, cors, monitor...
   };
 }
@@ -80,7 +80,14 @@ JWT_ACCESS_SECRET=change-me
 JWT_ACCESS_EXPIRES_IN=15m
 JWT_REFRESH_SECRET=change-me-too # distinto de JWT_ACCESS_SECRET
 JWT_REFRESH_EXPIRES_IN=7d
+AUTH_SESSION_MAX_AGE_SECONDS=43200   # vida máxima de la sesión aunque se refresque (60–2592000; default 12 h)
+AUTH_LOGIN_MAX_ATTEMPTS=5            # intentos fallidos por IP antes de bloquear el login (1–100)
+AUTH_LOGIN_WINDOW_SECONDS=900        # ventana del conteo y duración del bloqueo (1–86400)
+HTTP_TRUST_PROXY_HOPS=0              # proxies delante de la app (Azure App Service: 1); 0 = IP del socket
 ```
+
+- `src/config/auth.ts` (plantilla `templates/config/auth.ts`, `parseAuthConfig`) arma este bloque: los secretos son obligatorios y sin valor por defecto; el resto tiene default.
+- Límite de intentos, vida de la sesión y proxy: `contrato-http.md` (Autenticación).
 
 ## CORS
 

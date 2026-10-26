@@ -7,6 +7,7 @@ import { App } from 'supertest/types';
 import { MonitorModule } from '../src/common/monitor/monitor.module';
 import { MONITOR_WIDGETS, MonitorWidget } from '../src/common/monitor/monitor-widget.interface';
 import { EndpointsTotalWidget } from '../src/common/monitor/widgets/endpoints-total.widget';
+import { SecurityModule } from '../src/common/security/security.module';
 
 @Controller('cartera')
 class CarteraController {
@@ -42,9 +43,11 @@ async function createApp(enabled: boolean): Promise<INestApplication<App>> {
             MONITOR_SESSION_EXPIRES_IN: '15m',
             ACCESS_TOKEN: 'example123',
             JWT_ACCESS_SECRET: 'e2e-access-secret-with-enough-length',
+            auth: { login: { maxAttempts: 3, windowSeconds: 60 } },
           }),
         ],
       }),
+      SecurityModule,
       MonitorModule,
     ],
     controllers: [CarteraController, HealthController],
@@ -123,6 +126,20 @@ describe('Monitor (e2e)', () => {
     const res = await request(app.getHttpServer()).post('/monitor/logout');
     expect(res.status).toBe(303);
     expect(String(res.headers['set-cookie'])).toContain('arness_monitor=; Max-Age=0');
+  });
+
+  it('answers 429 with Retry-After after too many wrong passwords, even with the right one', async () => {
+    const limited = await createApp(true);
+    const attempt = (password: string): request.Test =>
+      request(limited.getHttpServer()).post('/monitor/login').type('form').send({ password });
+    for (let i = 0; i < 3; i += 1) expect((await attempt('wrong')).status).toBe(401);
+
+    const res = await attempt('example123');
+    expect(res.status).toBe(429);
+    expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
+    expect(res.headers['set-cookie']).toBeUndefined();
+    expect(res.text).toContain('Demasiados intentos');
+    await limited.close();
   });
 
   it('answers 404 when MONITOR_ENABLED=false', async () => {

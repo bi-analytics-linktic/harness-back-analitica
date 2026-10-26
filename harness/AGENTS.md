@@ -120,7 +120,8 @@ Un reporte es `GET /api/v1/<modulo>/<segmento>` y vive en una carpeta con estos 
 ## 8. Autenticación
 
 - **Sin usuarios en BD:** `POST /api/v1/auth/login` recibe `{ password }` y lo compara en tiempo constante con `ACCESS_TOKEN`. Devuelve un access token y un refresh token.
-- **Refresh:** `POST /api/v1/auth/refresh` emite un par nuevo.
+- **Refresh:** `POST /api/v1/auth/refresh` emite un par nuevo con el mismo `auth_time` del login: ninguna sesión dura más de `AUTH_SESSION_MAX_AGE_SECONDS` (`401 SESSION_EXPIRED`).
+- **Límite de intentos:** `/auth/login` y `/monitor/login` comparten `LoginAttemptLimiter` (por IP, en memoria, sin Redis): `429 TOO_MANY_ATTEMPTS` con `Retry-After`.
 - **Tokens:** secretos distintos para access y refresh, y el claim `type` se valida.
 - **Guard global:** `JwtAuthGuard` protege todo; `@Public()` **solo** en `login`, `refresh` y `health`.
 - **Monitor:** no es `@Public()`. `JwtAuthGuard` omite las rutas marcadas con `@MonitorRoute()` y las protege `MonitorSessionGuard` con su cookie de sesión (§10). El resto de la API solo acepta `Bearer`.
@@ -133,6 +134,7 @@ Un reporte es `GET /api/v1/<modulo>/<segmento>` y vive en una carpeta con estos 
 - **Éxito:** `{ data, meta? }`. `meta` (`pagination` y `filters`) solo cuando el endpoint pagina o filtra.
 - **Error:** `{ error: { code, message, details?, requestId, path, timestamp } }` con el status HTTP correcto.
 - Los errores de PostgreSQL nunca se exponen tal cual.
+- **Cabeceras de seguridad:** `securityHeaders()` en toda respuesta (CSP, `nosniff`, `X-Frame-Options`, `no-store`, HSTS) y sin `X-Powered-By`, sin helmet.
 - **CORS:** allowlist por entorno en `CORS_ORIGINS` (orígenes exactos, `https://` salvo `localhost`). Nunca `*`, `origin: true` ni reflejar el origen de la petición; sin `credentials`. Métodos `GET`, `POST` y `OPTIONS`.
 - **Ejemplos, tabla de códigos y CORS:** `harness/reference/contrato-http.md`.
 

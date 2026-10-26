@@ -20,3 +20,4 @@ Decisiones de diseño **del paquete `@bi-analytics/arness-back`**. No se instala
 | [0014](0014-scope-npm-bi-analytics.md) | Publicar bajo el scope `@bi-analytics` | Aceptada | 2026-10-26 |
 | [0015](0015-node-lts-con-aprobacion.md) | Detectar la última LTS de Node y actualizar solo con aprobación humana | Aceptada | 2026-10-26 |
 | [0016](0016-evolutivo-con-hora-y-responsable.md) | Entradas del evolutivo con hora de Bogotá y responsable | Aceptada | 2026-10-26 |
+| [0017](0017-endurecimiento-de-autenticacion.md) | Endurecimiento de la autenticación: intentos, sesión y cabeceras | Aceptada | 2026-10-26 |

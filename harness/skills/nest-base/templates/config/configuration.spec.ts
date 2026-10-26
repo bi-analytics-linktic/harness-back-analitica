@@ -16,7 +16,7 @@ const base: Env = {
 describe('buildConfiguration', () => {
   it('groups variables by topic and applies non-sensitive defaults', () => {
     const config = buildConfiguration(base);
-    expect(config.app).toEqual({ nodeEnv: 'development', port: 3000 });
+    expect(config.app).toEqual({ nodeEnv: 'development', port: 3000, trustProxyHops: 0 });
     expect(config.logging).toEqual({ level: 'info', format: 'json' });
     expect(config.databases.MAIN).toEqual({
       host: 'localhost',
@@ -78,6 +78,7 @@ describe('buildConfiguration', () => {
     ['PORT', 'abc', /integer/],
     ['MONITOR_ENABLED', 'yes', /true or false/],
     ['LOG_FORMAT', 'xml', /json or pretty/],
+    ['HTTP_TRUST_PROXY_HOPS', '11', /between 0 and 10/],
   ])('rejects %s=%p', (name, value, message) => {
     expect(() => buildConfiguration({ ...base, [name]: value })).toThrow(message);
   });

@@ -470,6 +470,42 @@ describe('init.sh: documentación del proyecto', () => {
   });
 });
 
+describe('init.sh: endurecimiento de auth', () => {
+  it('advierte cabeceras, límite de intentos y vida de la sesión sin adoptar, sin bloquear', () => {
+    const repo = legacyProject();
+    run(repo, ['init']);
+    writeFiles(repo, {
+      'src/main.ts': "app.set('trust proxy', true);\n",
+      'src/common/auth/auth.service.ts': 'export class AuthService {}\n',
+      'src/common/monitor/monitor.controller.ts': '@UseGuards(MonitorSessionGuard)\n@Controller()\nexport class M {}\n',
+      'src/common/auth/auth.service.spec.ts': 'LoginAttemptLimiter; isSessionExpired;\n',
+    });
+    const { status, report } = initJson(repo, ['--quick']);
+    assert.equal(status, 0);
+    for (const id of ['security.headers', 'security.trust-proxy', 'security.session-max-age']) {
+      assert.equal(issuesOf(report, id)[0]?.level, 'warning', id);
+    }
+    assert.equal(issuesOf(report, 'security.login-rate-limit').length, 2, 'auth y monitor; los specs no cuentan');
+  });
+
+  it('no advierte cuando se adoptan las plantillas', () => {
+    const repo = legacyProject();
+    run(repo, ['init']);
+    writeFiles(repo, {
+      'src/main.ts': "app.use(securityHeaders());\napp.set('trust proxy', hops);\n",
+      'src/common/auth/auth.controller.ts': 'constructor(private readonly attempts: LoginAttemptLimiter) {}\n',
+      'src/common/auth/auth.service.ts': 'if (isSessionExpired(payload, maxAge)) throw e;\n',
+      'src/common/monitor/monitor.controller.ts':
+        '@UseGuards(MonitorSessionGuard)\n@Controller()\nexport class M { constructor(a: LoginAttemptLimiter) {} }\n',
+    });
+    const { report } = initJson(repo, ['--quick']);
+    const ids = issueIds(report).filter((id) =>
+      ['security.headers', 'security.trust-proxy', 'security.login-rate-limit', 'security.session-max-age'].includes(id),
+    );
+    assert.deepEqual(ids, []);
+  });
+});
+
 describe('init.sh: última LTS de Node', () => {
   /** init.sh --quick --json con la LTS fijada por NODE_LTS_VERSION (sin red). */
   const ltsReport = (repo, lts) => {

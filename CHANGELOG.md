@@ -9,13 +9,24 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 
 ### Agregado
 - **Última LTS de Node** (ADR 0015): `init.sh` compara `.nvmrc` con la última LTS de `nodejs.org` y advierte `toolchain.node-lts` si hay un major más nuevo; sin red lo omite. `NODE_LTS_VERSION` fija la LTS de referencia (`off` desactiva). Playbook `update-node-lts.md`: el agente analiza el impacto, lo presenta y actualiza solo con aprobación humana. AGENTS.md §0 y §16, agente `lider` y pistas de `doctor`.
+- **Endurecimiento de la autenticación** (ADR 0017), sin dependencias nuevas:
+  - plantillas `templates/security/` (`LoginAttemptLimiter`, `securityHeaders()`, `sessionClaims` / `isSessionExpired` y `SecurityModule`) y `templates/config/auth.ts` (`parseAuthConfig`, bloque `auth` de la configuración), con specs;
+  - límite de intentos por IP en `/auth/login` y `/monitor/login` (`429 TOO_MANY_ATTEMPTS` con `Retry-After`);
+  - vida máxima de la sesión con `auth_time` (`401 SESSION_EXPIRED`);
+  - cabeceras de seguridad en toda respuesta;
+  - variables `AUTH_LOGIN_MAX_ATTEMPTS`, `AUTH_LOGIN_WINDOW_SECONDS`, `AUTH_SESSION_MAX_AGE_SECONDS` y `HTTP_TRUST_PROXY_HOPS`;
+  - `init.sh`: `security.headers`, `security.trust-proxy`, `security.login-rate-limit`, y `security.session-max-age`; tres novedades de seguridad en `doctor`;
+  - `auth.e2e-spec.ts` exige que la cookie del monitor y el refresh token no sirvan como `Bearer`.
 
 ### Cambiado
+- El monitor comparte el límite de intentos del login: `templates/monitor/monitor.controller.ts` y `templates/e2e/monitor.e2e-spec.ts` usan `LoginAttemptLimiter`.
+- `arness sync` solo anuncia las novedades hasta la versión que instala (antes también mostraba las de versiones posteriores presentes en el catálogo).
 - **Evolutivo con hora y responsable** (ADR 0016): cada entrada de `docs/EVOLUTIVO.md` lleva fecha, hora y zona de Bogotá (`AAAA-MM-DD HH:mm -0500`) y el responsable (`git config user.name`). Plantilla, AGENTS.md §12, `new-endpoint`, `review.md`, `revisor` y `nest-base`.
 
 ### Para proyectos existentes
 - `init.sh` puede mostrar la advertencia nueva `toolchain.node-lts`. No rompe nada: el agente propone el análisis y solo actualiza Node si lo apruebas. Si no, queda en `docs/PENDIENTES.md`.
 - Las entradas existentes de `docs/EVOLUTIVO.md` no se reescriben: el formato nuevo aplica desde la siguiente entrega. Verifica que cada persona tenga `git config user.name`.
+- **Seguridad:** `init.sh` mostrará `security.*` nuevos como advertencias y `pnpm arness doctor` los lista con sus pasos. Ninguna impide arrancar: los secretos actuales siguen sirviendo. Al adoptar la vida máxima de la sesión, los usuarios con un refresh token anterior deberán volver a iniciar sesión. Detrás de Azure App Service, define `HTTP_TRUST_PROXY_HOPS=1`. Avisa a frontend de `429 TOO_MANY_ATTEMPTS` y `401 SESSION_EXPIRED`.
 
 ## [0.2.0] - 2026-10-23
 

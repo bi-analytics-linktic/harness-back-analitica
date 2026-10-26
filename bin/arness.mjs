@@ -319,7 +319,7 @@ function cmdSync(opts) {
     for (const rel of removed) showDiff(root, rel, null);
   }
   const incoming = parseNovelties(next.get(NOVELTIES)?.content.toString('utf8')).filter(
-    (n) => compareVersions(n.since, manifest.version) > 0,
+    (n) => compareVersions(n.since, manifest.version) > 0 && compareVersions(n.since, PKG.version) <= 0,
   );
   if (incoming.length) {
     log(`\nNovedades desde ${manifest.version} (no se activan solas; detalle y pasos: arness doctor):`);

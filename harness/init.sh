@@ -557,6 +557,25 @@ EOF
     issue security.cors-open ".env.example: CORS_ORIGINS no admite comodines"
   fi
 
+  # Endurecimiento de auth (ADR 0017): cabeceras, límite de intentos y vida de la sesión.
+  has_ts() { grep -rq --include='*.ts' --exclude='*.spec.ts' "$1" "$2" 2>/dev/null; }
+  if [ -f src/main.ts ]; then
+    if grep -q 'securityHeaders' src/main.ts; then ok "Cabeceras de seguridad registradas en src/main.ts"
+    else issue security.headers "src/main.ts no registra securityHeaders() (contrato-http.md, Cabeceras de seguridad)"; fi
+    if grep -qE "trust proxy['\"][[:space:]]*,[[:space:]]*true" src/main.ts; then
+      issue security.trust-proxy "src/main.ts confía en cualquier proxy (trust proxy = true): usa HTTP_TRUST_PROXY_HOPS (contrato-http.md, Límite de intentos)"
+    fi
+  fi
+  if [ -d src/common/auth ]; then
+    if has_ts LoginAttemptLimiter src/common/auth; then ok "Límite de intentos en /auth/login"
+    else issue security.login-rate-limit "/auth/login no usa LoginAttemptLimiter (contrato-http.md, Límite de intentos)"; fi
+    if has_ts isSessionExpired src/common/auth; then ok "Vida máxima de la sesión en /auth/refresh"
+    else issue security.session-max-age "/auth/refresh no limita la vida de la sesión con auth_time (contrato-http.md, Vida máxima de la sesión)"; fi
+  fi
+  if [ -d src/common/monitor ] && ! has_ts LoginAttemptLimiter src/common/monitor; then
+    issue security.login-rate-limit "/monitor/login no usa LoginAttemptLimiter (contrato-http.md, Monitor)"
+  fi
+
   if [ -d src/common/monitor ]; then
     mon_ctrl="$(grep -rl --include='*.controller.ts' '@Controller' src/common/monitor 2>/dev/null)"
     if [ -z "$mon_ctrl" ] || grep -L 'MonitorSessionGuard' $mon_ctrl | grep -q .; then
