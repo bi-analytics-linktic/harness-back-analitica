@@ -1,6 +1,7 @@
 // Plantilla del harness → src/common/monitor/monitor.controller.ts
-import { Body, Controller, Get, Post, Res, UseFilters, UseGuards } from '@nestjs/common';
-import type { Response } from 'express';
+import { Body, Controller, Get, Post, Req, Res, UseFilters, UseGuards } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { LoginAttemptLimiter } from '../security/login-attempts';
 import {
   MONITOR_HOME_URL,
   MONITOR_LOGIN_URL,
@@ -28,6 +29,7 @@ export class MonitorController {
   constructor(
     private readonly monitor: MonitorService,
     private readonly session: MonitorSessionService,
+    private readonly attempts: LoginAttemptLimiter,
   ) {}
 
   @Get()
@@ -43,11 +45,30 @@ export class MonitorController {
 
   @MonitorLogin()
   @Post('login')
-  async login(@Body() body: MonitorLoginDto, @Res() res: Response): Promise<void> {
+  async login(
+    @Body() body: MonitorLoginDto,
+    @Req() req: Request,
+    @Res() res: Response,
+  ): Promise<void> {
+    // Same limiter as /auth/login (contrato-http.md, Límite de intentos).
+    const client = req.ip ?? 'unknown';
+    const status = this.attempts.check(client);
+    if (!status.allowed) {
+      const minutes = Math.ceil(status.retryAfterSeconds / 60);
+      res.setHeader('Retry-After', String(status.retryAfterSeconds));
+      sendHtml(
+        res,
+        429,
+        renderLoginPage(`Demasiados intentos. Intenta de nuevo en ${minutes} min.`),
+      );
+      return;
+    }
     if (!this.session.verifyPassword(body.password)) {
+      this.attempts.registerFailure(client);
       sendHtml(res, 401, renderLoginPage('Contraseña incorrecta'));
       return;
     }
+    this.attempts.reset(client);
     res
       .set(MONITOR_SECURITY_HEADERS)
       .setHeader('Set-Cookie', await this.session.createSessionCookie());

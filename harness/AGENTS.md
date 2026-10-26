@@ -15,6 +15,7 @@ Por defecto **los hallazgos son advertencias** (`⚠`, exit 0): el proyecto sigu
 - Si el usuario pide corregir algo: **máximo 3 intentos**; después vuelve a informar.
 - Nunca modifiques `init.sh`, reglas de ESLint ni tests, ni silencies chequeos en `harness/arness.config.json`, para que pasen. Silenciar un chequeo es decisión humana y lleva motivo.
 - Opciones: `--strict`, `--json` (salida para máquinas), `--quick` (sin lint, build, tests ni health), `--e2e`, `--no-health` e `--install`. `pnpm arness doctor` resume, sin modificar nada, las **novedades por adoptar** de cada versión (seguridad, recomendadas y opcionales, con sus pasos) y el resto de los hallazgos.
+- **Nueva LTS de Node (`toolchain.node-lts`):** `init.sh` compara `.nvmrc` con la última LTS publicada (sin red, lo omite). Si hay una más nueva, **no actualices por tu cuenta**: analiza el impacto con `harness/playbooks/update-node-lts.md`, preséntale el análisis al humano y actualiza solo con su aprobación explícita. Si no aprueba, va a `docs/PENDIENTES.md`.
 - **Después de `pnpm arness sync`:** ejecuta `pnpm arness doctor` e **informa** al humano las novedades por adoptar. No las implementes si no son parte de la tarea; adoptar o declinar una novedad es decisión humana (declinar va con motivo en `harness/arness.config.json` → `declined`).
 - Al terminar una tarea, `./harness/init.sh` debe terminar en 0 y sin advertencias nuevas respecto al inicio.
 
@@ -119,7 +120,8 @@ Un reporte es `GET /api/v1/<modulo>/<segmento>` y vive en una carpeta con estos 
 ## 8. Autenticación
 
 - **Sin usuarios en BD:** `POST /api/v1/auth/login` recibe `{ password }` y lo compara en tiempo constante con `ACCESS_TOKEN`. Devuelve un access token y un refresh token.
-- **Refresh:** `POST /api/v1/auth/refresh` emite un par nuevo.
+- **Refresh:** `POST /api/v1/auth/refresh` emite un par nuevo con el mismo `auth_time` del login: ninguna sesión dura más de `AUTH_SESSION_MAX_AGE_SECONDS` (`401 SESSION_EXPIRED`).
+- **Límite de intentos:** `/auth/login` y `/monitor/login` comparten `LoginAttemptLimiter` (por IP, en memoria, sin Redis): `429 TOO_MANY_ATTEMPTS` con `Retry-After`.
 - **Tokens:** secretos distintos para access y refresh, y el claim `type` se valida.
 - **Guard global:** `JwtAuthGuard` protege todo; `@Public()` **solo** en `login`, `refresh` y `health`.
 - **Monitor:** no es `@Public()`. `JwtAuthGuard` omite las rutas marcadas con `@MonitorRoute()` y las protege `MonitorSessionGuard` con su cookie de sesión (§10). El resto de la API solo acepta `Bearer`.
@@ -132,6 +134,7 @@ Un reporte es `GET /api/v1/<modulo>/<segmento>` y vive en una carpeta con estos 
 - **Éxito:** `{ data, meta? }`. `meta` (`pagination` y `filters`) solo cuando el endpoint pagina o filtra.
 - **Error:** `{ error: { code, message, details?, requestId, path, timestamp } }` con el status HTTP correcto.
 - Los errores de PostgreSQL nunca se exponen tal cual.
+- **Cabeceras de seguridad:** `securityHeaders()` en toda respuesta (CSP, `nosniff`, `X-Frame-Options`, `no-store`, HSTS) y sin `X-Powered-By`, sin helmet.
 - **CORS:** allowlist por entorno en `CORS_ORIGINS` (orígenes exactos, `https://` salvo `localhost`). Nunca `*`, `origin: true` ni reflejar el origen de la petición; sin `credentials`. Métodos `GET`, `POST` y `OPTIONS`.
 - **Ejemplos, tabla de códigos y CORS:** `harness/reference/contrato-http.md`.
 
@@ -157,7 +160,7 @@ Crear o cambiar un endpoint actualiza, **en el mismo cambio**:
 Cambiar `.columns.ts`, los filtros o el envelope es un **cambio de contrato**: actualiza `FRONT.md` y sube la versión de la clave de caché.
 
 **Documentación del proyecto (`docs/`)**, plantillas en `harness/skills/nest-base/templates/docs/`:
-- **`docs/EVOLUTIVO.md`**: toda entrega (endpoint, módulo, conexión, widget del monitor, cambio de contrato) agrega **en el mismo cambio** una entrada al final: fecha, cliente/módulo, qué se entregó en lenguaje de negocio y referencia. **Solo avance:** nunca pendientes, bloqueos, stoppers ni riesgos. Las entradas anteriores no se reescriben.
+- **`docs/EVOLUTIVO.md`**: toda entrega (endpoint, módulo, conexión, widget del monitor, cambio de contrato) agrega **en el mismo cambio** una entrada al final: fecha y hora de Bogotá (`TZ=America/Bogota date '+%Y-%m-%d %H:%M %z'`), cliente/módulo, **responsable** (`git config user.name` de quien trabaja en ese momento; si está vacío, pregúntalo y nunca pongas el nombre del agente), qué se entregó en lenguaje de negocio y referencia. **Solo avance:** nunca pendientes, bloqueos, stoppers ni riesgos. Las entradas anteriores no se reescriben.
 - **`docs/PENDIENTES.md`**: lo que quedó abierto (pendientes, bloqueos, recomendaciones, deuda técnica, advertencias de `init.sh` sin corregir), con fecha, contexto y tipo. Al resolverse pasa a *Resueltos*.
 - **`docs/TECNICO.md`**: arquitectura, módulos, conexiones (sin credenciales), variables propias, despliegue y enlace a las decisiones. Se actualiza cuando cambian.
 - `FRONT.md` sigue en la raíz.
@@ -215,6 +218,7 @@ Ante ambigüedad de negocio o datos, **pregunta**. No inventes columnas, tablas 
 | Crear un módulo o cliente | `harness/playbooks/new-module.md` |
 | Agregar una conexión de BD | `harness/playbooks/add-database.md` |
 | Agregar un widget al monitor | `harness/playbooks/new-monitor-widget.md` |
+| Actualizar Node a la última LTS | `harness/playbooks/update-node-lts.md` |
 | Revisar un cambio | `harness/playbooks/review.md` |
 | Variables de entorno | `harness/reference/configuracion.md` |
 | Envelope, errores, auth, CORS, health, monitor | `harness/reference/contrato-http.md` |

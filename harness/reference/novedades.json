@@ -46,7 +46,7 @@
       "paths": ["src/common/monitor"],
       "approval": "react y react-dom (aprobadas en AGENTS.md §2 solo para el monitor); registra la adopción en harness/decisiones/ si el proyecto aún no las usa.",
       "steps": [
-        "Copia harness/skills/nest-base/templates/monitor/ a src/common/monitor/ y registra MonitorModule.",
+        "Copia harness/skills/nest-base/templates/monitor/ a src/common/monitor/ y registra MonitorModule. Requiere SecurityModule (templates/security/), que comparte el límite de intentos del login.",
         "Excluye monitor del prefijo global y haz que JwtAuthGuard omita IS_MONITOR_ROUTE_KEY.",
         "Agrega MONITOR_ENABLED=false y MONITOR_SESSION_EXPIRES_IN=15m a .env.example y .env.local."
       ],
@@ -102,6 +102,57 @@
       ],
       "adr": "0011",
       "reference": "harness/AGENTS.md §12"
+    },
+    {
+      "id": "login-rate-limit",
+      "since": "0.3.0",
+      "type": "seguridad",
+      "title": "Límite de intentos en /auth/login y /monitor/login",
+      "why": "Toda la API se protege con una contraseña compartida: sin límite se puede adivinar por fuerza bruta.",
+      "checks": ["security.login-rate-limit", "security.trust-proxy"],
+      "paths": [],
+      "approval": null,
+      "steps": [
+        "Copia harness/skills/nest-base/templates/security/ a src/common/security/ y registra SecurityModule en app.module.ts. Copia también templates/config/auth.ts (y su spec) y usa auth: parseAuthConfig(env) en configuration.ts.",
+        "En el login: check(req.ip) → 429 TOO_MANY_ATTEMPTS con Retry-After; contraseña incorrecta → registerFailure(req.ip); correcta → reset(req.ip). Copia también templates/monitor/monitor.controller.ts si usas el monitor.",
+        "Agrega AUTH_LOGIN_MAX_ATTEMPTS, AUTH_LOGIN_WINDOW_SECONDS y HTTP_TRUST_PROXY_HOPS (1 detrás de Azure App Service) y, en main.ts, app.set(\"trust proxy\", hops) solo si hops > 0.",
+        "Avisa a frontend: ante 429 se espera lo que indica Retry-After (FRONT.md)."
+      ],
+      "adr": "0017",
+      "reference": "harness/reference/contrato-http.md (Autenticación › Límite de intentos)"
+    },
+    {
+      "id": "session-max-age",
+      "since": "0.3.0",
+      "type": "seguridad",
+      "title": "Vida máxima de la sesión en /auth/refresh",
+      "why": "Cada refresh entregaba un par nuevo sin límite: un refresh token robado servía indefinidamente.",
+      "checks": ["security.session-max-age"],
+      "paths": [],
+      "approval": null,
+      "steps": [
+        "Con src/common/security/ ya copiado, firma el par con sessionClaims(authTime): el login usa nowInSeconds() y el refresh copia el auth_time del refresh token.",
+        "En el refresh, si isSessionExpired(payload, sessionMaxAgeSeconds) responde 401 SESSION_EXPIRED.",
+        "Agrega AUTH_SESSION_MAX_AGE_SECONDS=43200 a .env.example y .env.local, y avisa a frontend: ante 401 SESSION_EXPIRED vuelve al login. Los refresh tokens emitidos antes no traen auth_time y exigirán un login nuevo."
+      ],
+      "adr": "0017",
+      "reference": "harness/reference/contrato-http.md (Autenticación › Vida máxima de la sesión)"
+    },
+    {
+      "id": "security-headers",
+      "since": "0.3.0",
+      "type": "seguridad",
+      "title": "Cabeceras de seguridad en toda respuesta",
+      "why": "Sin CSP, nosniff, X-Frame-Options ni no-store, el navegador puede interpretar o guardar en caché respuestas con datos privados.",
+      "checks": ["security.headers"],
+      "paths": [],
+      "approval": null,
+      "steps": [
+        "Con src/common/security/ ya copiado, agrega app.use(securityHeaders()) en src/main.ts antes de registrar las rutas.",
+        "Verifica en test/ que una respuesta de la API trae las cabeceras y no trae X-Powered-By."
+      ],
+      "adr": "0017",
+      "reference": "harness/reference/contrato-http.md (Cabeceras de seguridad)"
     }
   ]
 }
