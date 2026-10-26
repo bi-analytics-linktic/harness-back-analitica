@@ -1,5 +1,5 @@
 {
-  "name": "@linktic/arness-back",
+  "name": "@bi-analytics/arness-back",
   "version": "0.2.0",
   "description": "Harness de agentes IA (Claude Code, Codex, Gemini CLI, Cursor) para backends NestJS de analítica",
   "repository": {

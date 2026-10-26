@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// arness — instala, sincroniza y verifica el harness de @linktic/arness-back en un repositorio.
+// arness — instala, sincroniza y verifica el harness de @bi-analytics/arness-back en un repositorio.
 // Sin dependencias: solo módulos de Node (>= 20).
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -392,7 +392,7 @@ const DOCTOR_HINTS = {
   progress: 'El líder lo reinicia desde harness/reference/progress-plantilla.md.',
   git: 'Usa un repo git propio; si hay secretos versionados, sácalos del índice (git rm --cached) y rota las credenciales.',
   package: 'Repo fuente del paquete: revisa bin/, CHANGELOG.md y docs/adr/.',
-  install: 'Instala o actualiza el paquete (README de @linktic/arness-back) y ejecuta arness sync.',
+  install: 'Instala o actualiza el paquete (README de @bi-analytics/arness-back) y ejecuta arness sync.',
   toolchain: 'Skill nest-base §1 y §4: .nvmrc, packageManager, lockfile y scripts.',
   structure: 'AGENTS.md §4 y skill nest-base §4–§5. Adóptalo cuando convenga; no bloquea.',
   sql: 'AGENTS.md §6: SQL solo en *.sql.ts y sin escrituras.',

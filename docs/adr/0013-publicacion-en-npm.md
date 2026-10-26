@@ -1,6 +1,6 @@
 # 0013. Publicar el paquete en el registro público de npm
 
-- **Estado:** Aceptada
+- **Estado:** Aceptada (scope modificado por 0014)
 - **Fecha:** 2026-10-23
 - **Decidido por:** Equipo backend de Analítica
 - **Alcance:** Distribución de `@linktic/arness-back`

@@ -265,7 +265,7 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 PKG_NAME=''
 [ -f package.json ] && PKG_NAME="$(node -p "require('./package.json').name || ''" 2>/dev/null)"
-HARNESS_PKG='@linktic/arness-back'
+HARNESS_PKG='@bi-analytics/arness-back'
 
 if [ "$PKG_NAME" = "$HARNESS_PKG" ]; then
   # Repo fuente del paquete: se verifica el CLI, no un proyecto NestJS.

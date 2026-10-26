@@ -10,7 +10,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 ## [0.2.0] - 2026-10-23
 
 ### Cambiado
-- **Distribución por npm** (ADR 0013, reemplaza a 0004): el paquete se publica en el registro público de npm como `@linktic/arness-back`. Se instala con `pnpm add -D @linktic/arness-back@X.Y.Z` (o `pnpm dlx @linktic/arness-back@X.Y.Z init` en un repo sin `package.json`), sin acceso al repo de GitHub. La skill `nest-base` y el mensaje de `arness init` usan el nombre del paquete.
+- **Distribución por npm** (ADR 0013 y 0014, reemplaza a 0004): el paquete se publica en el registro público de npm como `@bi-analytics/arness-back`. Se instala con `pnpm add -D @bi-analytics/arness-back@X.Y.Z` (o `pnpm dlx @bi-analytics/arness-back@X.Y.Z init` en un repo sin `package.json`), sin acceso al repo de GitHub. La skill `nest-base` y el mensaje de `arness init` usan el nombre del paquete.
 - `init.sh` ya no bloquea por defecto: los hallazgos son **advertencias** y termina en 0, con un resumen por categoría. Cada chequeo tiene un id (`categoria.nombre`).
 - Única excepción crítica: `.env` o `.env.local` versionado en git sigue terminando en 1 y no se puede silenciar.
 - AGENTS.md §0 y §15, agentes `lider`, `implementador` y `revisor`, y `review.md`: el agente reporta las advertencias y continúa, sin corregir lo que está fuera de alcance ni introducir advertencias nuevas.
@@ -37,7 +37,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 - **`arness doctor` con novedades por versión** (ADR 0012): catálogo `harness/reference/novedades.json` (tipo seguridad/recomendada/opcional, checks de `init.sh`, pasos, ADR y aprobación). `doctor` muestra versión instalada frente a la disponible, novedades por adoptar, adoptadas y declinadas, y el resto de los hallazgos; `--json` y `--since <versión>`. `harness/arness.config.json` acepta `declined` con motivo. `sync` anuncia las novedades de la versión destino. AGENTS.md §0 y agente `lider`: tras un `sync`, informar las novedades sin implementarlas.
 
 ### Para proyectos existentes
-- **Instalación desde npm:** cambia la devDependency `git+https://...#vX.Y.Z` por `pnpm add -D @linktic/arness-back@0.2.0` y ejecuta `pnpm arness sync`.
+- **Instalación desde npm con nombre nuevo** (ADR 0014): quita la devDependency `@linktic/arness-back` (`git+https://...#vX.Y.Z`) con `pnpm remove @linktic/arness-back`, instala `pnpm add -D @bi-analytics/arness-back@0.2.0` y ejecuta `pnpm arness sync`.
 - **No hay cambios obligatorios.** Después de `pnpm arness sync`, `./harness/init.sh` puede mostrar advertencias que antes eran fallos: el proyecto sigue funcionando igual.
 - Ejecuta `pnpm arness doctor`: lista las novedades de esta versión por adoptar, con sus pasos. Adóptalas cuando convenga o declínalas con motivo en `harness/arness.config.json` → `declined`.
 - Si tienes `.env` o `.env.local` en git, `init.sh` terminará en 1: sácalo del índice (`git rm --cached .env`) y rota los secretos.

@@ -2,7 +2,7 @@
 
 Fuente única de instrucciones para cualquier agente IA (Claude Code, Codex, Gemini CLI, Cursor u otro). Vive en `harness/AGENTS.md`; el `AGENTS.md` de la raíz es un enlace simbólico a este archivo, y `CLAUDE.md`, `GEMINI.md` y `.cursor/rules/` solo apuntan aquí. **Todas las rutas son relativas a la raíz del proyecto.** Los detalles de consulta están en `harness/reference/` y se leen **solo cuando la tarea lo requiere**.
 
-> **Base del harness: la instala y actualiza el paquete `@linktic/arness-back` (desde npm; `pnpm arness sync`) y no se edita en este repo.** Toda decisión posterior va en `harness/decisiones/` (§17), que pertenece al repo. Lee `harness/decisiones/README.md` antes de trabajar.
+> **Base del harness: la instala y actualiza el paquete `@bi-analytics/arness-back` (desde npm; `pnpm arness sync`) y no se edita en este repo.** Toda decisión posterior va en `harness/decisiones/` (§17), que pertenece al repo. Lee `harness/decisiones/README.md` antes de trabajar.
 
 ## 0. Antes de empezar: `./harness/init.sh`
 
@@ -42,7 +42,7 @@ No es transaccional: no crea, modifica ni borra datos de negocio.
 | Calidad / tests | ESLint + Prettier; Jest + Supertest |
 | Entrega | Docker + Azure Pipelines |
 
-**Dependencias aprobadas:** las de la tabla, `pino-http`, `@types/pg`, `@linktic/arness-back` (dev) y las que genera `nest new`. Además `react` y `react-dom` (con `@types/react` y `@types/react-dom` en dev), **solo** para renderizar el monitor en el servidor (§10), y `pino-pretty` **solo como devDependency**, para el formato legible de logs en desarrollo (§10). Cualquier otra requiere aprobación humana registrada en `harness/decisiones/`. La base del proyecto se crea con la skill `nest-base`.
+**Dependencias aprobadas:** las de la tabla, `pino-http`, `@types/pg`, `@bi-analytics/arness-back` (dev) y las que genera `nest new`. Además `react` y `react-dom` (con `@types/react` y `@types/react-dom` en dev), **solo** para renderizar el monitor en el servidor (§10), y `pino-pretty` **solo como devDependency**, para el formato legible de logs en desarrollo (§10). Cualquier otra requiere aprobación humana registrada en `harness/decisiones/`. La base del proyecto se crea con la skill `nest-base`.
 
 ## 3. Comandos
 
@@ -231,4 +231,4 @@ La base del harness (todo `harness/` salvo `harness/decisiones/`, `harness/arnes
 Un agente:
 1. Lee las decisiones `Aceptada` relevantes antes de implementar.
 2. Ante una decisión humana no cubierta por la base, o una aprobación de algo prohibido, redacta la decisión en `Propuesta` y pide que la acepten.
-3. **Nunca** edita la base. `arness sync` detecta las ediciones y se detiene. Las mejoras al harness se proponen en el repo del paquete `@linktic/arness-back` y llegan con una nueva versión.
+3. **Nunca** edita la base. `arness sync` detecta las ediciones y se detiene. Las mejoras al harness se proponen en el repo del paquete `@bi-analytics/arness-back` y llegan con una nueva versión.

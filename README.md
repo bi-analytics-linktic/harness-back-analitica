@@ -1,4 +1,4 @@
-# @linktic/arness-back
+# @bi-analytics/arness-back
 
 Harness de agentes IA para los **backends NestJS de analítica**. Funciona con Claude Code, Codex, Gemini CLI y Cursor, e incluye:
 - reglas (`AGENTS.md`);
@@ -7,7 +7,7 @@ Harness de agentes IA para los **backends NestJS de analítica**. Funciona con C
 - la skill `nest-base`;
 - playbooks y referencias.
 
-Se publica en el **registro público de npm** como `@linktic/arness-back` (ADR 0013); cada versión tiene además su tag git `vX.Y.Z`. Las **decisiones de cada proyecto** (`harness/decisiones/`) quedan en el repo que lo instala, y el paquete nunca las modifica.
+Se publica en el **registro público de npm** como `@bi-analytics/arness-back` (ADR 0013); cada versión tiene además su tag git `vX.Y.Z`. Las **decisiones de cada proyecto** (`harness/decisiones/`) quedan en el repo que lo instala, y el paquete nunca las modifica.
 
 ## Requisitos
 
@@ -16,7 +16,7 @@ Se publica en el **registro público de npm** como `@linktic/arness-back` (ADR 0
 Para ver la última versión publicada:
 
 ```bash
-pnpm view @linktic/arness-back version
+pnpm view @bi-analytics/arness-back version
 ```
 
 ## Instalación
@@ -30,7 +30,7 @@ Elige el caso según el estado del repo donde vas a instalarlo. En los comandos,
 ```bash
 cd mi-backend                       # carpeta del nuevo backend (con git init hecho)
 
-pnpm dlx @linktic/arness-back@0.2.0 init
+pnpm dlx @bi-analytics/arness-back@0.2.0 init
 
 ./harness/init.sh                   # debe quedar en verde (modo solo harness)
 ```
@@ -40,7 +40,7 @@ Después, pide a tu agente **"crea la base del proyecto NestJS"** (skill `nest-b
 ### B. Proyecto que ya tiene `package.json`
 
 ```bash
-pnpm add -D @linktic/arness-back@0.2.0
+pnpm add -D @bi-analytics/arness-back@0.2.0
 pnpm arness init
 ./harness/init.sh
 ```
@@ -109,10 +109,10 @@ Cada versión declara sus novedades en `harness/reference/novedades.json` (tipo 
 
 ## Actualizar a una versión nueva
 
-`pnpm outdated @linktic/arness-back` muestra si hay una versión nueva.
+`pnpm outdated @bi-analytics/arness-back` muestra si hay una versión nueva.
 
 ```bash
-pnpm add -D @linktic/arness-back@0.3.0
+pnpm add -D @bi-analytics/arness-back@0.3.0
 pnpm arness sync --dry-run --diff   # ver qué cambiaría, línea a línea
 pnpm arness sync                    # aplicar (respalda la versión anterior)
 pnpm arness doctor                  # novedades de la versión nueva y cómo adoptarlas
@@ -141,7 +141,7 @@ pnpm pack:check         # archivos que se instalan
 
 ### Publicar una versión
 
-Requiere una cuenta npm con permiso de escritura en el scope `@linktic` (`pnpm login`; comprueba con `pnpm whoami`).
+Requiere una cuenta npm con permiso de escritura en el scope `@bi-analytics` (`pnpm login`; comprueba con `pnpm whoami`).
 
 1. Actualiza `CHANGELOG.md` y, si aplica, `harness/reference/novedades.json`.
 2. Verifica: `pnpm test`, `./harness/init.sh --strict` y `pnpm pack:check` (revisa la lista: todo lo que aparece será público).

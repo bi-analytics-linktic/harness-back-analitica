@@ -1,4 +1,4 @@
-# CI de @linktic/arness-back: tests del CLI y verificación del harness.
+# CI de @bi-analytics/arness-back: tests del CLI y verificación del harness.
 # El paquete se publica en el registro público de npm (pnpm publish) desde un tag vX.Y.Z (ADR 0013).
 trigger:
   branches:

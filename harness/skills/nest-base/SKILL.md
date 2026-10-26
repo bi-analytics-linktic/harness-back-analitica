@@ -72,7 +72,7 @@ pnpm add -D @types/pg @types/react @types/react-dom pino-pretty
 - Si pnpm avisa que ignoró scripts de build (`pnpm approve-builds`), muestra la lista al humano y espera su aprobación.
 - Agrega el harness como devDependency desde npm, con la versión exacta del manifiesto:
   ```bash
-  pnpm add -D "@linktic/arness-back@$(node -p "require('./harness/.arness.json').version")"
+  pnpm add -D "@bi-analytics/arness-back@$(node -p "require('./harness/.arness.json').version")"
   ```
   Si falla (red o registro), detente e informa; no lo quites de la lista.
 - Cualquier paquete adicional requiere aprobación explícita y una decisión en `harness/decisiones/`.

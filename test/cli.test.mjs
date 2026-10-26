@@ -57,7 +57,7 @@ describe('arness init', () => {
 
     assert.deepEqual(fs.readdirSync(path.join(repo, 'harness/decisiones')).sort(), ['README.md', '_plantilla.md']);
     const m = manifest(repo);
-    assert.equal(m.package, '@linktic/arness-back');
+    assert.equal(m.package, '@bi-analytics/arness-back');
     assert.ok(!Object.keys(m.files).some((f) => f.startsWith('harness/decisiones/')), 'decisiones no es gestionada');
     assert.match(read(repo, '.gitignore'), /^harness\/progress\.md$/m);
   });

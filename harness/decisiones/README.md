@@ -1,6 +1,6 @@
 # Decisiones
 
-Decisiones **de este repositorio**, que se van tomando a medida que el proyecto crece. Esta carpeta pertenece al repo: el paquete `@linktic/arness-back` la crea una sola vez y `arness sync` nunca la modifica. El resto de `harness/` es la base gestionada por el paquete y **no se edita**: todo lo nuevo se registra aquí.
+Decisiones **de este repositorio**, que se van tomando a medida que el proyecto crece. Esta carpeta pertenece al repo: el paquete `@bi-analytics/arness-back` la crea una sola vez y `arness sync` nunca la modifica. El resto de `harness/` es la base gestionada por el paquete y **no se edita**: todo lo nuevo se registra aquí.
 
 ## Reglas
 

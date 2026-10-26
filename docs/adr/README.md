@@ -1,6 +1,6 @@
 # ADR del harness
 
-Decisiones de diseño **del paquete `@linktic/arness-back`**. No se instalan en los repos que lo usan: cada uno registra las suyas en su propio `harness/decisiones/`.
+Decisiones de diseño **del paquete `@bi-analytics/arness-back`**. No se instalan en los repos que lo usan: cada uno registra las suyas en su propio `harness/decisiones/`.
 
 | # | Decisión | Estado | Fecha |
 |---|---|---|---|
@@ -16,4 +16,5 @@ Decisiones de diseño **del paquete `@linktic/arness-back`**. No se instalan en 
 | [0010](0010-logs-json-y-formato-legible.md) | Logs: JSON en producción y formato legible en desarrollo | Aceptada | 2026-10-23 |
 | [0011](0011-documentacion-del-proyecto-en-docs.md) | Documentación del proyecto en docs/: técnico, evolutivo y pendientes | Aceptada | 2026-10-23 |
 | [0012](0012-doctor-con-catalogo-de-novedades.md) | doctor con catálogo de novedades por versión | Aceptada | 2026-10-23 |
-| [0013](0013-publicacion-en-npm.md) | Publicar el paquete en el registro público de npm | Aceptada | 2026-10-23 |
+| [0013](0013-publicacion-en-npm.md) | Publicar el paquete en el registro público de npm | Aceptada (scope modificado por 0014) | 2026-10-23 |
+| [0014](0014-scope-npm-bi-analytics.md) | Publicar bajo el scope `@bi-analytics` | Aceptada | 2026-10-26 |
