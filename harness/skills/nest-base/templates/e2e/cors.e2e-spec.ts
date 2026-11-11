@@ -41,7 +41,7 @@ describe('CORS (e2e)', () => {
       'Authorization,Content-Type,X-Request-Id',
     );
     expect(res.headers['access-control-max-age']).toBe('600');
-    expect(res.headers['access-control-allow-credentials']).toBeUndefined();
+    expect(res.headers['access-control-allow-credentials']).toBe('true');
   });
 
   it('exposes X-Cache and X-Request-Id to allowed origins', async () => {
@@ -56,5 +56,6 @@ describe('CORS (e2e)', () => {
       .set('Origin', 'https://evil.example.com')
       .set('Access-Control-Request-Method', 'GET');
     expect(res.headers['access-control-allow-origin']).toBeUndefined();
+    expect(res.headers['access-control-allow-credentials']).toBeUndefined();
   });
 });

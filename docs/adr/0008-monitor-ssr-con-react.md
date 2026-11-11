@@ -1,6 +1,6 @@
 # 0008. Tablero monitor con React SSR protegido por ACCESS_TOKEN
 
-- **Estado:** Aceptada
+- **Estado:** Obsoleta (retirado por 0018)
 - **Fecha:** 2026-10-20
 - **Decidido por:** Equipo backend de Analítica (aprobación humana de las dependencias `react` y `react-dom`)
 - **Alcance:** `src/common/monitor/` de los proyectos, skill `nest-base`, AGENTS.md §2, §8, §10 y §13, `init.sh` y `review.md`

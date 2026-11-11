@@ -57,7 +57,11 @@ export function parseCorsMaxAge(raw: string | undefined): number {
   return value;
 }
 
-/** Options for app.enableCors(): only origins in the allowlist get Access-Control-Allow-Origin. */
+/**
+ * Options for app.enableCors(): only origins in the allowlist get Access-Control-Allow-Origin.
+ * credentials is true because the auth session lives in HttpOnly cookies; it is safe only because
+ * the origin is checked against the exact allowlist (never *, never the reflected Origin).
+ */
 export function buildCorsOptions(origins: readonly string[], maxAgeSeconds: number): CorsOptions {
   const allowed = new Set(origins);
   return {
@@ -68,7 +72,7 @@ export function buildCorsOptions(origins: readonly string[], maxAgeSeconds: numb
     methods: CORS_METHODS,
     allowedHeaders: CORS_ALLOWED_HEADERS,
     exposedHeaders: CORS_EXPOSED_HEADERS,
-    credentials: false,
+    credentials: true,
     maxAge: maxAgeSeconds,
     optionsSuccessStatus: 204,
   };

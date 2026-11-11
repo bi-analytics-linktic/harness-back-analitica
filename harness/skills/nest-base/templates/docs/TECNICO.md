@@ -7,7 +7,6 @@ Backend de analítica de **<cliente o producto>**: reportes de solo lectura sobr
 
 - NestJS por capas hexagonales por endpoint: controller → service (Cache-Aside) → repository (`pg`) → `*.sql.ts`.
 - Organización `src/modules/<cliente>/<modulo>/<endpoint>/`; lo transversal vive en `src/common/`.
-- Autenticación JWT (access + refresh) en todos los endpoints salvo `login`, `refresh` y `health`.
 - Caché Redis opcional: la API responde igual si Redis está caído o deshabilitado.
 
 ## Módulos
@@ -36,7 +35,7 @@ Variables por tema en `src/config/configuration.ts` y referencia completa en `ha
 
 - Imagen Docker (`Dockerfile`) y pipeline `azure-pipelines.yml`.
 - Entornos: <desarrollo, QA, producción> y sus URLs base.
-- `GET /health` reporta cada BD y la caché; `GET /monitor` solo donde `MONITOR_ENABLED=true`.
+- `GET /health` reporta cada BD y la caché.
 
 ## Decisiones
 

@@ -40,7 +40,7 @@ Aplica la regla de agrupación (más de 2 archivos del mismo tipo en una carpeta
 - `*.controller.spec.ts`: delega al service y fija `X-Cache`.
 - `*.repository.spec.ts`: con pool mockeado, verifica que ejecuta el SQL del builder y mapea las filas.
 - `*-query.dto.spec.ts`: casos válidos e inválidos.
-- E2E en `test/`: 401 sin token, 200 con token y envelope correcto, 400 con filtro inválido.
+- E2E en `test/`: 200 con envelope correcto y 400 con filtro inválido.
 
 ## 3. Documentación
 
@@ -48,7 +48,6 @@ Aplica la regla de agrupación (más de 2 archivos del mismo tipo en una carpeta
 
 Agrega la request en `postman/arness-back.postman_collection.json`, dentro de la carpeta `<cliente>/<modulo>`:
 - `GET {{baseUrl}}/api/v1/<modulo>/<segmento>?param=ejemplo`
-- Auth: heredada de la colección (`Bearer {{accessToken}}`)
 - Sin descripciones largas.
 
 ### FRONT.md
@@ -58,7 +57,7 @@ Agrega una sección con esta plantilla:
 ````markdown
 ### <Nombre legible del reporte>
 
-`GET /api/v1/<modulo>/<segmento>` · requiere `Authorization: Bearer <accessToken>`
+`GET /api/v1/<modulo>/<segmento>`
 
 Qué devuelve: <una frase>.
 
@@ -71,7 +70,7 @@ Qué devuelve: <una frase>.
 { "data": [{ "col1": "…", "col2": 0 }], "meta": { "pagination": { "page": 1, "pageSize": 50, "total": 120, "totalPages": 3 } } }
 ```
 
-**Consumo recomendado:** <paginar con pageSize ≤ N | traer completo>; <filtros a enviar siempre>; ante `401 TOKEN_EXPIRED`, llamar a `/auth/refresh` y reintentar una vez; datos cacheados en servidor por <TTL>, así que no hace falta hacer polling más frecuente.
+**Consumo recomendado:** <paginar con pageSize ≤ N | traer completo>; <filtros a enviar siempre>; datos cacheados en servidor por <TTL>, así que no hace falta hacer polling más frecuente.
 ````
 
 ### README del módulo

@@ -2,8 +2,8 @@
 // Single place in the project that reads process.env. The rest of the code receives AppConfig
 // through ConfigService<AppConfig, true>. Variables are validated at startup (env validation in
 // src/config/); this file only groups them and converts their types.
+import { isIP } from 'node:net';
 import { type LogFormat, parseLogFormat } from '../common/logging/logger-options';
-import { type AuthConfig, parseAuthConfig } from './auth';
 import { parseCorsMaxAge, parseCorsOrigins } from './cors';
 
 export type Env = Record<string, string | undefined>;
@@ -20,7 +20,7 @@ export interface DatabaseConfig {
 }
 
 export interface AppConfig {
-  app: { nodeEnv: string; port: number; trustProxyHops: number };
+  app: { nodeEnv: string; port: number; trustProxy: string | undefined };
   logging: { level: string; format: LogFormat };
   databases: Record<string, DatabaseConfig>;
   cache: {
@@ -30,9 +30,7 @@ export interface AppConfig {
     keyPrefix: string;
     opTimeoutMs: number;
   };
-  auth: AuthConfig;
   cors: { origins: string[]; maxAgeSeconds: number };
-  monitor: { enabled: boolean; sessionExpiresIn: string };
 }
 
 /** Required variable. The error names the variable, never its value. Secrets have no default. */
@@ -94,13 +92,37 @@ export function parseDatabases(env: Env): Record<string, DatabaseConfig> {
   );
 }
 
-/** Proxies in front of the app (Azure App Service, gateway): 0 = connect directly, use the socket IP. */
-export function trustProxyHops(env: Env): number {
-  const hops = int(env, 'HTTP_TRUST_PROXY_HOPS', 0);
-  if (hops < 0 || hops > 10) {
-    throw new Error('HTTP_TRUST_PROXY_HOPS must be an integer between 0 and 10');
+export const TRUST_PROXY_NAMES: readonly string[] = ['loopback', 'linklocal', 'uniquelocal'];
+
+/** IPv4/IPv6 address, optionally with a CIDR prefix (10.0.0.0/8, fd00::/8). */
+function isIpOrSubnet(value: string): boolean {
+  const [ip, bits, ...rest] = value.split('/');
+  const version = isIP(ip);
+  if (version === 0 || rest.length > 0) return false;
+  if (bits === undefined) return true;
+  const prefix = Number(bits);
+  return /^\d+$/.test(bits) && prefix <= (version === 4 ? 32 : 128);
+}
+
+/**
+ * Trusted proxies in front of the app (Express 'trust proxy'): loopback, linklocal, uniquelocal or
+ * IP/CIDR subnets, comma separated. Empty = none, req.ip is the socket address.
+ * Never true nor a hop count: anyone reaching the app directly could forge X-Forwarded-For.
+ */
+export function parseTrustProxy(env: Env): string | undefined {
+  const items = text(env, 'HTTP_TRUST_PROXY', '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (items.length === 0) return undefined;
+  for (const item of items) {
+    if (!TRUST_PROXY_NAMES.includes(item) && !isIpOrSubnet(item)) {
+      throw new Error(
+        'HTTP_TRUST_PROXY accepts loopback, linklocal, uniquelocal or IP/CIDR subnets (never true or a hop count)',
+      );
+    }
   }
-  return hops;
+  return items.join(', ');
 }
 
 /** Pure: builds the configuration from an env object (tests pass their own). */
@@ -108,7 +130,7 @@ export function buildConfiguration(env: Env): AppConfig {
   const cacheEnabled = bool(env, 'CACHE_ENABLED', false);
   const nodeEnv = text(env, 'NODE_ENV', 'development');
   return {
-    app: { nodeEnv, port: int(env, 'PORT', 3000), trustProxyHops: trustProxyHops(env) },
+    app: { nodeEnv, port: int(env, 'PORT', 3000), trustProxy: parseTrustProxy(env) },
     logging: {
       level: text(env, 'LOG_LEVEL', 'info'),
       format: parseLogFormat(env.LOG_FORMAT, nodeEnv),
@@ -121,14 +143,9 @@ export function buildConfiguration(env: Env): AppConfig {
       keyPrefix: text(env, 'CACHE_KEY_PREFIX', 'arness'),
       opTimeoutMs: int(env, 'CACHE_OP_TIMEOUT_MS', 200),
     },
-    auth: parseAuthConfig(env),
     cors: {
       origins: parseCorsOrigins(env.CORS_ORIGINS),
       maxAgeSeconds: parseCorsMaxAge(env.CORS_MAX_AGE_SECONDS),
-    },
-    monitor: {
-      enabled: bool(env, 'MONITOR_ENABLED', false),
-      sessionExpiresIn: text(env, 'MONITOR_SESSION_EXPIRES_IN', '15m'),
     },
   };
 }

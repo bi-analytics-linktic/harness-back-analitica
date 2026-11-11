@@ -1,6 +1,6 @@
 # 0006. CORS con allowlist por entorno
 
-- **Estado:** Aceptada
+- **Estado:** Aceptada (`credentials` modificado por 0019)
 - **Fecha:** 2026-10-20
 - **Decidido por:** Equipo backend de Analítica
 - **Alcance:** `src/main.ts` y `src/config/` de los proyectos, skill `nest-base`, `init.sh` y `review.md`

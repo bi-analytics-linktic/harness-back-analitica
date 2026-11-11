@@ -215,7 +215,7 @@ describe('init.sh: advertencias por defecto', () => {
     const repo = legacyProject();
     run(repo, ['init']);
     git(repo, 'init', '-q');
-    fs.writeFileSync(path.join(repo, '.env'), 'ACCESS_TOKEN=x\n');
+    fs.writeFileSync(path.join(repo, '.env'), 'DB_MAIN_PASSWORD=x\n');
     git(repo, 'add', '-f', '.env');
     fs.writeFileSync(path.join(repo, 'harness/arness.config.json'), JSON.stringify({ ignore: { 'git.env-tracked': 'no' } }));
     const { status, report } = initJson(repo, ['--quick']);
@@ -272,7 +272,7 @@ function endpointFiles(base, e) {
   return files;
 }
 
-describe('init.sh: CORS, fronteras y monitor', () => {
+describe('init.sh: CORS y fronteras', () => {
   it('un proyecto existente sin CORS ni fronteras solo recibe advertencias', () => {
     const repo = legacyProject();
     run(repo, ['init']);
@@ -282,7 +282,6 @@ describe('init.sh: CORS, fronteras y monitor', () => {
     for (const id of ['security.cors-env', 'security.cors', 'architecture.eslint-boundaries']) {
       assert.equal(issuesOf(report, id)[0]?.level, 'warning', id);
     }
-    assert.ok(!issueIds(report).some((id) => id.startsWith('security.monitor')), 'sin src/common/monitor no se verifica el monitor');
   });
 
   it('detecta CORS abierto en main.ts y comodines en CORS_ORIGINS', () => {
@@ -368,31 +367,6 @@ describe('init.sh: CORS, fronteras y monitor', () => {
     }
   });
 
-  it('con src/common/monitor exige su guard y sus variables', () => {
-    const repo = legacyProject();
-    run(repo, ['init']);
-    writeFiles(repo, {
-      'src/common/monitor/monitor.controller.ts': "@Public()\n@Controller('monitor')\nexport class MonitorController {}\n",
-    });
-    let { report } = initJson(repo, ['--quick']);
-    assert.equal(issuesOf(report, 'security.monitor-guard').length, 1);
-    assert.equal(issuesOf(report, 'security.monitor-env').length, 2);
-
-    writeFiles(repo, {
-      'src/common/monitor/monitor.controller.ts':
-        "// No es @Public(): lo protege MonitorSessionGuard.\n@UseGuards(MonitorSessionGuard)\n@Controller('monitor')\nexport class MonitorController {}\n",
-      '.env.example': 'PORT=3000\nMONITOR_ENABLED=false\nMONITOR_SESSION_EXPIRES_IN=15m\n',
-    });
-    ({ report } = initJson(repo, ['--quick']));
-    assert.ok(!issueIds(report).some((id) => id.startsWith('security.monitor')), JSON.stringify(issueIds(report)));
-
-    writeFiles(repo, {
-      'src/common/monitor/monitor.controller.ts':
-        "@Public()\n@UseGuards(MonitorSessionGuard)\n@Controller('monitor')\nexport class MonitorController {}\n",
-    });
-    ({ report } = initJson(repo, ['--quick']));
-    assert.match(issuesOf(report, 'security.monitor-guard')[0].message, /@Public\(\)/);
-  });
 });
 
 describe('init.sh: configuración centralizada', () => {
@@ -470,38 +444,34 @@ describe('init.sh: documentación del proyecto', () => {
   });
 });
 
-describe('init.sh: endurecimiento de auth', () => {
-  it('advierte cabeceras, límite de intentos y vida de la sesión sin adoptar, sin bloquear', () => {
+describe('init.sh: cabeceras de seguridad', () => {
+  it('advierte cabeceras sin registrar y trust proxy abierto, sin bloquear', () => {
     const repo = legacyProject();
     run(repo, ['init']);
-    writeFiles(repo, {
-      'src/main.ts': "app.set('trust proxy', true);\n",
-      'src/common/auth/auth.service.ts': 'export class AuthService {}\n',
-      'src/common/monitor/monitor.controller.ts': '@UseGuards(MonitorSessionGuard)\n@Controller()\nexport class M {}\n',
-      'src/common/auth/auth.service.spec.ts': 'LoginAttemptLimiter; isSessionExpired;\n',
-    });
+    writeFiles(repo, { 'src/main.ts': "app.set('trust proxy', true);\n" });
     const { status, report } = initJson(repo, ['--quick']);
     assert.equal(status, 0);
-    for (const id of ['security.headers', 'security.trust-proxy', 'security.session-max-age']) {
+    for (const id of ['security.headers', 'security.trust-proxy']) {
       assert.equal(issuesOf(report, id)[0]?.level, 'warning', id);
     }
-    assert.equal(issuesOf(report, 'security.login-rate-limit').length, 2, 'auth y monitor; los specs no cuentan');
+
+    writeFiles(repo, {
+      'src/main.ts': "app.use(securityHeaders());\napp.set('trust proxy', 1);\n",
+      '.env.example': 'PORT=3000\nHTTP_TRUST_PROXY_HOPS=1\n',
+    });
+    const hops = issuesOf(initJson(repo, ['--quick']).report, 'security.trust-proxy');
+    assert.equal(hops.length, 2, 'número de saltos en main.ts y HTTP_TRUST_PROXY_HOPS en .env.example');
   });
 
-  it('no advierte cuando se adoptan las plantillas', () => {
+  it('no advierte cuando se adopta la plantilla', () => {
     const repo = legacyProject();
     run(repo, ['init']);
     writeFiles(repo, {
-      'src/main.ts': "app.use(securityHeaders());\napp.set('trust proxy', hops);\n",
-      'src/common/auth/auth.controller.ts': 'constructor(private readonly attempts: LoginAttemptLimiter) {}\n',
-      'src/common/auth/auth.service.ts': 'if (isSessionExpired(payload, maxAge)) throw e;\n',
-      'src/common/monitor/monitor.controller.ts':
-        '@UseGuards(MonitorSessionGuard)\n@Controller()\nexport class M { constructor(a: LoginAttemptLimiter) {} }\n',
+      'src/main.ts': "app.use(securityHeaders());\napp.set('trust proxy', trustProxy);\n",
+      '.env.example': 'PORT=3000\nHTTP_TRUST_PROXY=loopback, uniquelocal\n',
     });
     const { report } = initJson(repo, ['--quick']);
-    const ids = issueIds(report).filter((id) =>
-      ['security.headers', 'security.trust-proxy', 'security.login-rate-limit', 'security.session-max-age'].includes(id),
-    );
+    const ids = issueIds(report).filter((id) => ['security.headers', 'security.trust-proxy'].includes(id));
     assert.deepEqual(ids, []);
   });
 });
@@ -660,9 +630,9 @@ describe('arness doctor: novedades', () => {
     assert.equal(status, 0);
     const pending = report.novelties.pending.map((n) => n.id);
     assert.ok(pending.includes('project-docs') && pending.includes('cors-allowlist'), JSON.stringify(pending));
-    const monitor = report.novelties.pending.find((n) => n.id === 'monitor');
-    assert.equal(monitor.type, 'opcional');
-    assert.deepEqual(monitor.findings, ['No existe src/common/monitor'], 'sin carpeta, el monitor está pendiente solo por ella');
+    const boundaries = report.novelties.pending.find((n) => n.id === 'eslint-boundaries');
+    assert.equal(boundaries.type, 'recomendada');
+    assert.ok(boundaries.findings.includes('No existe eslint.boundaries.mjs'), JSON.stringify(boundaries.findings));
     assert.equal(report.installed, report.available);
     assert.equal(report.newerAvailable, false);
     assert.ok(!report.issues.some((i) => i.id === 'docs.files'), 'los avisos de una novedad van con ella');

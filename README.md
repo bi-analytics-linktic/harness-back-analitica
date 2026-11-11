@@ -94,7 +94,7 @@ Configuración opcional del repo en `harness/arness.config.json` (sync no la toc
 }
 ```
 
-`ignore` silencia un chequeo y exige un motivo. `required` hace que un chequeo falle aunque no haya `--strict`. Los ids aparecen entre corchetes en la salida de `init.sh`. `declined` (`{ "monitor": "No aplica a este cliente" }`) marca una novedad que el repo decidió no adoptar; también exige motivo.
+`ignore` silencia un chequeo y exige un motivo. `required` hace que un chequeo falle aunque no haya `--strict`. Los ids aparecen entre corchetes en la salida de `init.sh`. `declined` (`{ "log-format": "No aplica a este cliente" }`) marca una novedad que el repo decidió no adoptar; también exige motivo.
 
 ### `arness doctor`: novedades por adoptar
 

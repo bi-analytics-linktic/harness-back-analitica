@@ -375,7 +375,7 @@ else
   for f in docs/TECNICO.md docs/EVOLUTIVO.md docs/PENDIENTES.md; do
     need_file docs.files "$f"
   done
-  for d in src/config src/common/auth src/common/database src/common/cache src/common/http \
+  for d in src/config src/common/database src/common/cache src/common/http \
            src/common/logging src/common/health src/modules test; do
     need_dir structure.dirs "$d"
   done
@@ -407,16 +407,10 @@ else
   fi
 
   if [ -f .env.example ]; then
-    for k in PORT DATABASES ACCESS_TOKEN JWT_ACCESS_SECRET JWT_ACCESS_EXPIRES_IN \
-             JWT_REFRESH_SECRET JWT_REFRESH_EXPIRES_IN CACHE_ENABLED REDIS_URL; do
+    for k in PORT DATABASES CACHE_ENABLED REDIS_URL; do
       grep -q "^$k=" .env.example || issue structure.env-example ".env.example no define $k"
     done
     grep -q '^CORS_ORIGINS=' .env.example || issue security.cors-env ".env.example no define CORS_ORIGINS (allowlist de orígenes, AGENTS.md §9)"
-    if [ -d src/common/monitor ]; then
-      for k in MONITOR_ENABLED MONITOR_SESSION_EXPIRES_IN; do
-        grep -q "^$k=" .env.example || issue security.monitor-env ".env.example no define $k (src/common/monitor existe)"
-      done
-    fi
     dbs="$(grep -m1 '^DATABASES=' .env.example | cut -d= -f2 | tr ',' ' ')"
     for db in $dbs; do
       for part in HOST PORT NAME USER PASSWORD; do
@@ -557,34 +551,16 @@ EOF
     issue security.cors-open ".env.example: CORS_ORIGINS no admite comodines"
   fi
 
-  # Endurecimiento de auth (ADR 0017): cabeceras, límite de intentos y vida de la sesión.
-  has_ts() { grep -rq --include='*.ts' --exclude='*.spec.ts' "$1" "$2" 2>/dev/null; }
+  # Cabeceras de seguridad y proxy de confianza (contrato-http.md, Cabeceras de seguridad).
   if [ -f src/main.ts ]; then
     if grep -q 'securityHeaders' src/main.ts; then ok "Cabeceras de seguridad registradas en src/main.ts"
     else issue security.headers "src/main.ts no registra securityHeaders() (contrato-http.md, Cabeceras de seguridad)"; fi
-    if grep -qE "trust proxy['\"][[:space:]]*,[[:space:]]*true" src/main.ts; then
-      issue security.trust-proxy "src/main.ts confía en cualquier proxy (trust proxy = true): usa HTTP_TRUST_PROXY_HOPS (contrato-http.md, Límite de intentos)"
+    if grep -qE "trust proxy['\"][[:space:]]*,[[:space:]]*(true|[0-9]+)[[:space:]]*\)" src/main.ts; then
+      issue security.trust-proxy "src/main.ts confía en cualquier proxy (trust proxy = true o un número de saltos): usa HTTP_TRUST_PROXY (contrato-http.md, Cabeceras de seguridad)"
     fi
   fi
-  if [ -d src/common/auth ]; then
-    if has_ts LoginAttemptLimiter src/common/auth; then ok "Límite de intentos en /auth/login"
-    else issue security.login-rate-limit "/auth/login no usa LoginAttemptLimiter (contrato-http.md, Límite de intentos)"; fi
-    if has_ts isSessionExpired src/common/auth; then ok "Vida máxima de la sesión en /auth/refresh"
-    else issue security.session-max-age "/auth/refresh no limita la vida de la sesión con auth_time (contrato-http.md, Vida máxima de la sesión)"; fi
-  fi
-  if [ -d src/common/monitor ] && ! has_ts LoginAttemptLimiter src/common/monitor; then
-    issue security.login-rate-limit "/monitor/login no usa LoginAttemptLimiter (contrato-http.md, Monitor)"
-  fi
-
-  if [ -d src/common/monitor ]; then
-    mon_ctrl="$(grep -rl --include='*.controller.ts' '@Controller' src/common/monitor 2>/dev/null)"
-    if [ -z "$mon_ctrl" ] || grep -L 'MonitorSessionGuard' $mon_ctrl | grep -q .; then
-      issue security.monitor-guard "El controller de src/common/monitor debe usar MonitorSessionGuard (AGENTS.md §10)"
-    elif grep -rqE '^[[:space:]]*@Public\(' src/common/monitor; then
-      issue security.monitor-guard "src/common/monitor no usa @Public(): lo protege MonitorSessionGuard (AGENTS.md §10)"
-    else
-      ok "Monitor protegido por MonitorSessionGuard"
-    fi
+  if [ -f .env.example ] && grep -q '^HTTP_TRUST_PROXY_HOPS=' .env.example; then
+    issue security.trust-proxy ".env.example usa HTTP_TRUST_PROXY_HOPS (número de saltos): reemplázala por HTTP_TRUST_PROXY (contrato-http.md, Cabeceras de seguridad)"
   fi
 
   # ───────────────────────────────────────────────────────────────────────────

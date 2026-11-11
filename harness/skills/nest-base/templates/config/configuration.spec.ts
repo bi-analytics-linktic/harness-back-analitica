@@ -7,16 +7,13 @@ const base: Env = {
   DB_MAIN_NAME: 'analytics',
   DB_MAIN_USER: 'readonly_user',
   DB_MAIN_PASSWORD: 'change-me',
-  ACCESS_TOKEN: 'example123',
-  JWT_ACCESS_SECRET: 'access-secret',
-  JWT_REFRESH_SECRET: 'refresh-secret',
   CORS_ORIGINS: 'http://localhost:4200',
 };
 
 describe('buildConfiguration', () => {
   it('groups variables by topic and applies non-sensitive defaults', () => {
     const config = buildConfiguration(base);
-    expect(config.app).toEqual({ nodeEnv: 'development', port: 3000, trustProxyHops: 0 });
+    expect(config.app).toEqual({ nodeEnv: 'development', port: 3000, trustProxy: undefined });
     expect(config.logging).toEqual({ level: 'info', format: 'json' });
     expect(config.databases.MAIN).toEqual({
       host: 'localhost',
@@ -29,9 +26,7 @@ describe('buildConfiguration', () => {
       statementTimeoutMs: 30000,
     });
     expect(config.cache.enabled).toBe(false);
-    expect(config.auth.jwt.accessExpiresIn).toBe('15m');
     expect(config.cors).toEqual({ origins: ['http://localhost:4200'], maxAgeSeconds: 600 });
-    expect(config.monitor).toEqual({ enabled: false, sessionExpiresIn: '15m' });
   });
 
   it('converts numbers, booleans and one block per database', () => {
@@ -54,13 +49,15 @@ describe('buildConfiguration', () => {
     expect(config.cache).toMatchObject({ enabled: true, redisUrl: 'redis://localhost:6379' });
   });
 
-  it.each(['ACCESS_TOKEN', 'JWT_ACCESS_SECRET', 'JWT_REFRESH_SECRET', 'DB_MAIN_PASSWORD'])(
-    'fails without the secret %s and does not print any value',
-    (name) => {
-      const env = { ...base, [name]: '' };
-      expect(() => buildConfiguration(env)).toThrow(`${name} is required`);
-    },
-  );
+  it('fails without the secret DB_MAIN_PASSWORD and does not print any value', () => {
+    const env = { ...base, DB_MAIN_PASSWORD: '' };
+    expect(() => buildConfiguration(env)).toThrow('DB_MAIN_PASSWORD is required');
+  });
+
+  it('accepts trusted proxies by network name or subnet', () => {
+    const config = buildConfiguration({ ...base, HTTP_TRUST_PROXY: 'loopback, uniquelocal,10.0.0.0/8' });
+    expect(config.app.trustProxy).toBe('loopback, uniquelocal, 10.0.0.0/8');
+  });
 
   it('requires REDIS_URL only when the cache is enabled', () => {
     expect(() => buildConfiguration({ ...base, CACHE_ENABLED: 'true' })).toThrow(
@@ -76,9 +73,11 @@ describe('buildConfiguration', () => {
 
   it.each([
     ['PORT', 'abc', /integer/],
-    ['MONITOR_ENABLED', 'yes', /true or false/],
+    ['CACHE_ENABLED', 'yes', /true or false/],
     ['LOG_FORMAT', 'xml', /json or pretty/],
-    ['HTTP_TRUST_PROXY_HOPS', '11', /between 0 and 10/],
+    ['HTTP_TRUST_PROXY', 'true', /never true or a hop count/],
+    ['HTTP_TRUST_PROXY', '1', /never true or a hop count/],
+    ['HTTP_TRUST_PROXY', '10.0.0.0/33', /never true or a hop count/],
   ])('rejects %s=%p', (name, value, message) => {
     expect(() => buildConfiguration({ ...base, [name]: value })).toThrow(message);
   });

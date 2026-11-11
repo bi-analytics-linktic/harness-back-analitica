@@ -16,8 +16,7 @@ export function buildConfiguration(env: Env): AppConfig {
   return {
     app: { nodeEnv: text(env, 'NODE_ENV', 'development'), port: int(env, 'PORT', 3000) },
     databases: parseDatabases(env), // DATABASES=MAIN,REPORTS → { MAIN: { host, port, ... }, REPORTS: {...} }
-    auth: parseAuthConfig(env), // src/config/auth.ts: secretos, límite de intentos y vida de la sesión
-    // cache, cors, monitor...
+    // cache, cors...
   };
 }
 export default (): AppConfig => buildConfiguration(process.env);
@@ -25,7 +24,7 @@ export default (): AppConfig => buildConfiguration(process.env);
 
 - **Registro:** `ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env.local', '.env'], validate, load: [configuration] })`. La validación (class-validator) revisa las variables crudas; `configuration.ts` solo agrupa y convierte.
 - **Consumo:** `ConfigService<AppConfig, true>` con rutas tipadas, por ejemplo `config.get('cache.enabled', { infer: true })`. También en `main.ts` (`app.get(ConfigService)`): ni siquiera el puerto se lee de `process.env`.
-- **Secretos sin valor por defecto** (`ACCESS_TOKEN`, `JWT_*_SECRET`, `DB_*_PASSWORD`): si faltan, la app no arranca. El error nombra la variable, nunca su valor. Los defaults son solo para valores no sensibles.
+- **Secretos sin valor por defecto** (`DB_*_PASSWORD`): si faltan, la app no arranca. El error nombra la variable, nunca su valor. Los defaults son solo para valores no sensibles.
 - **Tests:** los specs y `test/` pueden preparar `process.env`; `buildConfiguration(env)` es una función pura que se prueba con un objeto propio.
 - **Verificación:** ESLint (`configBoundaries` de `eslint.boundaries.mjs`, regla `no-restricted-properties`) e `init.sh` (`env.process-env`, `env.configuration-file`, `env.eslint`).
 
@@ -36,10 +35,12 @@ export default (): AppConfig => buildConfiguration(process.env);
 ```dotenv
 NODE_ENV=development             # development | test | production (default development)
 PORT=3000
+HTTP_TRUST_PROXY=                # proxies de confianza: loopback, linklocal, uniquelocal o IP/subred; vacía = IP del socket
 LOG_LEVEL=info                   # en desarrollo se recomienda debug
 LOG_FORMAT=json                  # json (default, producción) | pretty (solo desarrollo local)
 ```
 
+- `HTTP_TRUST_PROXY`: lista separada por comas. Balanceador en red privada: `loopback, uniquelocal`. La app no arranca con `true`, un número de saltos u otro valor (`contrato-http.md`, Cabeceras de seguridad).
 - `LOG_FORMAT=pretty` requiere `pino-pretty` en devDependencies y no se acepta con `NODE_ENV=production`. `.env.local` usa `pretty`; `.env.example` documenta `json`.
 
 ## Bases de datos (conexiones nombradas)
@@ -72,23 +73,6 @@ CACHE_KEY_PREFIX=arness
 CACHE_OP_TIMEOUT_MS=200
 ```
 
-## Autenticación
-
-```dotenv
-ACCESS_TOKEN=example123          # contraseña compartida para /auth/login
-JWT_ACCESS_SECRET=change-me
-JWT_ACCESS_EXPIRES_IN=15m
-JWT_REFRESH_SECRET=change-me-too # distinto de JWT_ACCESS_SECRET
-JWT_REFRESH_EXPIRES_IN=7d
-AUTH_SESSION_MAX_AGE_SECONDS=43200   # vida máxima de la sesión aunque se refresque (60–2592000; default 12 h)
-AUTH_LOGIN_MAX_ATTEMPTS=5            # intentos fallidos por IP antes de bloquear el login (1–100)
-AUTH_LOGIN_WINDOW_SECONDS=900        # ventana del conteo y duración del bloqueo (1–86400)
-HTTP_TRUST_PROXY_HOPS=0              # proxies delante de la app (Azure App Service: 1); 0 = IP del socket
-```
-
-- `src/config/auth.ts` (plantilla `templates/config/auth.ts`, `parseAuthConfig`) arma este bloque: los secretos son obligatorios y sin valor por defecto; el resto tiene default.
-- Límite de intentos, vida de la sesión y proxy: `contrato-http.md` (Autenticación).
-
 ## CORS
 
 ```dotenv
@@ -98,14 +82,3 @@ CORS_MAX_AGE_SECONDS=600                                           # opcional; c
 
 - `CORS_ORIGINS` es **obligatoria**: sin ella la app no arranca. No admite `*` ni comodines, solo orígenes (`esquema://host[:puerto]`, sin ruta), y exige `https://` salvo `localhost`, `127.0.0.1` y `[::1]`.
 - Cada entorno define su lista (desarrollo, QA, producción). `init.sh` verifica que `.env.example` la define y que no lleva `*`.
-
-## Monitor
-
-```dotenv
-MONITOR_ENABLED=false             # true para habilitar GET /monitor; con false responde 404
-MONITOR_SESSION_EXPIRES_IN=15m    # duración de la cookie de sesión del monitor
-```
-
-- Por defecto `false`. Habilítalo solo donde el equipo lo necesite; en producción requiere aprobación.
-- El login usa `ACCESS_TOKEN` y la sesión se firma con `JWT_ACCESS_SECRET`: no hay secretos nuevos.
-- Si existe `src/common/monitor/`, `init.sh` verifica que `.env.example` define ambas variables.
