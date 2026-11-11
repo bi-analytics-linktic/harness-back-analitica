@@ -158,6 +158,6 @@ Informa:
 - los archivos creados;
 - las dependencias instaladas;
 - el resultado de `./harness/init.sh`;
-- los pendientes (por ejemplo, credenciales reales de BD en `.env.local`).
+- los pendientes (por ejemplo, credenciales reales de BD en `.env.local`, y la autenticación con el SDK del IAM, que se agrega con `harness/playbooks/add-auth-sdk.md` antes de exponer el primer endpoint).
 
 No hagas commit salvo que el humano lo pida.

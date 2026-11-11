@@ -7,6 +7,7 @@ Revisa el diff contra `AGENTS.md` y reporta cada hallazgo con archivo y línea, 
 - [ ] SQL fuera de `*.sql.ts`, o valores concatenados o interpolados en SQL
 - [ ] `ORDER BY` o nombres de columna que no salen de una allowlist
 - [ ] Cualquier escritura, DDL o migración
+- [ ] Un controller de `src/modules/` sin `@IamAuth()`, un endpoint que responde sin sesión, una autenticación distinta del SDK `@bi/iam-sdk` (access token, JWT propio, `Bearer`) o tokens devueltos al front
 - [ ] CORS abierto: `enableCors()` sin opciones, `origin: true`, `'*'`, reflejar el `Origin`, `credentials: true` sin la allowlist exacta, o `CORS_ORIGINS` con comodín
 - [ ] `src/main.ts` sin `securityHeaders()`, o con `trust proxy` en `true` o en un número de saltos
 - [ ] Tokens, contraseñas o secretos en logs, respuestas, código o commits

@@ -42,7 +42,7 @@ No es transaccional: no crea, modifica ni borra datos de negocio.
 | Calidad / tests | ESLint + Prettier; Jest + Supertest |
 | Entrega | Docker + Azure Pipelines |
 
-**Dependencias aprobadas:** las de la tabla, `pino-http`, `@types/pg`, `@bi-analytics/arness-back` (dev) y las que genera `nest new`. Además `pino-pretty` **solo como devDependency**, para el formato legible de logs en desarrollo (§10). Cualquier otra requiere aprobación humana registrada en `harness/decisiones/`. La base del proyecto se crea con la skill `nest-base`.
+**Dependencias aprobadas:** las de la tabla, `pino-http`, `@types/pg`, `@bi-analytics/arness-back` (dev) y las que genera `nest new`. Además `@bi/iam-sdk`, el SDK de autenticación del IAM de Linktic (§8), instalado desde la URL del IAM con la versión exacta; actualizarlo también requiere aprobación. Además `pino-pretty` **solo como devDependency**, para el formato legible de logs en desarrollo (§10). Cualquier otra requiere aprobación humana registrada en `harness/decisiones/`. La base del proyecto se crea con la skill `nest-base`.
 
 ## 3. Comandos
 
@@ -118,7 +118,12 @@ Un reporte es `GET /api/v1/<modulo>/<segmento>` y vive en una carpeta con estos 
 
 ## 8. Autenticación
 
-La base del harness **no define autenticación por ahora**: no hay login, tokens, guard global ni límite de intentos. No la implementes por tu cuenta. Si una tarea la requiere, pregunta al humano.
+- **Única forma: el SDK `@bi/iam-sdk`** del IAM de Linktic. Toda autenticación por access token (`ACCESS_TOKEN`, JWT propio, `Bearer`) está **deprecada**: no se implementa ni se mantiene, y no se crea ninguna otra.
+- **Ninguna ruta sin autenticación:** todo controller de `src/modules/` lleva `@IamAuth()`. Solo quedan abiertas `GET /health` y las rutas del SDK en `/api/v1/auth/*`.
+- **Permisos desde el SDK:** se autoriza con `@RequirePermission('<permiso>')`, no por rol, y los nombres de permiso los define el humano. Sin listas de roles en variables de entorno (`IAM_ALLOWED_ROLES` se elimina).
+- **Sesión en cookies `HttpOnly`** que gestiona el SDK: los tokens nunca llegan al front. Por eso CORS lleva `credentials: true` (§9).
+- **Credenciales** en `IAM_URL`, `IAM_CLIENT_ID` e `IAM_CLIENT_SECRET` (secreto, sin default).
+- **Detalle e implementación:** `harness/playbooks/add-auth-sdk.md`. Antes de escribir código, lee la documentación incluida en el SDK (`node_modules/@bi/iam-sdk/AGENTS.md` y `docs/GUIDE.md`).
 
 ## 9. Contrato HTTP
 
@@ -139,13 +144,13 @@ La base del harness **no define autenticación por ahora**: no hay login, tokens
 ## 11. Tests (estándar NestJS)
 
 - **Unit:** `*.spec.ts` junto a cada archivo, con `Test.createTestingModule`. El repository se mockea por su token; `.sql.ts` se prueba como función pura (`text` + `values`).
-- **E2E:** `test/*.e2e-spec.ts` con Supertest: envelope, errores y `X-Cache`.
+- **E2E:** `test/*.e2e-spec.ts` con Supertest: autenticación (sin sesión → `401`, sin permiso → `403`), envelope, errores y `X-Cache`.
 - Todo cambio de comportamiento lleva su test. Nunca `.skip` ni `.only` para pasar el pipeline.
 
 ## 12. Documentación obligatoria
 
 Crear o cambiar un endpoint actualiza, **en el mismo cambio**:
-1. **`postman/arness-back.postman_collection.json`** (v2.1): una request mínima en la carpeta `<cliente>/<modulo>`, con `{{baseUrl}}`.
+1. **`postman/arness-back.postman_collection.json`** (v2.1): una request mínima en la carpeta `<cliente>/<modulo>`, con `{{baseUrl}}` (la sesión la da el `Login` de la carpeta `Auth`).
 2. **`FRONT.md`**: guía breve para frontend con qué devuelve, parámetros, un ejemplo recortado y **cómo consumirlo de forma recomendada**. La plantilla está en el playbook `new-endpoint`.
 3. **`README.md` del módulo**: propósito, endpoints, conexión y tablas o vistas.
 
@@ -166,10 +171,11 @@ Un agente **nunca**:
 4. Agrega, quita o actualiza dependencias sin aprobación humana.
 5. Loguea o devuelve tokens, contraseñas, stack traces o errores crudos de PostgreSQL.
 6. Hace que la API dependa de Redis.
-7. Usa npm o yarn, o hace commit de `dist/`, `node_modules/`, `.env` o `.env.local`.
-8. Abre CORS (`*`, `origin: true` o reflejar el origen), o habilita `credentials` sin la allowlist exacta de `CORS_ORIGINS`.
-9. Importa `modules/` desde `common/`, o un módulo o cliente desde otro.
-10. Lee `process.env` fuera de `src/config/` (salvo en tests).
+7. Deja un endpoint de `src/modules/` sin `@IamAuth()`, implementa una autenticación distinta del SDK `@bi/iam-sdk`, o devuelve tokens al front.
+8. Usa npm o yarn, o hace commit de `dist/`, `node_modules/`, `.env` o `.env.local`.
+9. Abre CORS (`*`, `origin: true` o reflejar el origen), o habilita `credentials` sin la allowlist exacta de `CORS_ORIGINS`.
+10. Importa `modules/` desde `common/`, o un módulo o cliente desde otro.
+11. Lee `process.env` fuera de `src/config/` (salvo en tests).
 
 ## 14. Convenciones
 
@@ -186,7 +192,7 @@ Un agente **nunca**:
 3. **Definition of Done:**
    - [ ] Patrón §5 completo, con un spec por archivo
    - [ ] SQL solo en `.sql.ts` y parametrizado
-   - [ ] `X-Cache` presente
+   - [ ] `@IamAuth()` en el controller, `@RequirePermission` confirmado con el humano y `X-Cache` presente
    - [ ] Postman, `FRONT.md` y README del módulo actualizados
    - [ ] Entrada en `docs/EVOLUTIVO.md` (solo avance) y lo abierto en `docs/PENDIENTES.md`
    - [ ] Variables nuevas en `.env.example`, `.env.local` y `src/config/`
@@ -207,6 +213,7 @@ Ante ambigüedad de negocio o datos, **pregunta**. No inventes columnas, tablas 
 | Crear un endpoint | `harness/playbooks/new-endpoint.md` |
 | Crear un módulo o cliente | `harness/playbooks/new-module.md` |
 | Agregar una conexión de BD | `harness/playbooks/add-database.md` |
+| Autenticación con el SDK del IAM | `harness/playbooks/add-auth-sdk.md` |
 | Actualizar Node a la última LTS | `harness/playbooks/update-node-lts.md` |
 | Revisar un cambio | `harness/playbooks/review.md` |
 | Variables de entorno | `harness/reference/configuracion.md` |

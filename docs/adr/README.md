@@ -23,3 +23,4 @@ Decisiones de diseño **del paquete `@bi-analytics/arness-back`**. No se instala
 | [0017](0017-endurecimiento-de-autenticacion.md) | Endurecimiento de la autenticación: intentos, sesión y cabeceras | Aceptada (intentos y sesión retirados por 0018) | 2026-10-26 |
 | [0018](0018-retiro-de-autenticacion-y-monitor.md) | Retirar de la base la autenticación, el límite de intentos y el monitor | Aceptada | 2026-11-11 |
 | [0019](0019-cors-con-credenciales-y-proxy-por-red.md) | CORS con credenciales, proxy de confianza por red y rutas de auth en /api/v1/auth | Aceptada | 2026-11-11 |
+| [0020](0020-autenticacion-con-iam-sdk.md) | Autenticación con el SDK del IAM de Linktic (`@bi/iam-sdk`) | Aceptada | 2026-11-11 |

@@ -4,7 +4,7 @@
 - **Fecha:** 2026-11-11
 - **Decidido por:** Equipo backend de Analítica (solicitud humana)
 - **Alcance:** plantillas `templates/cors/` y `templates/config/configuration.ts` (con sus specs y el e2e de CORS), AGENTS.md §9 y §13, `contrato-http.md`, `configuracion.md`, skill `nest-base`, `review.md`, `init.sh`, catálogo de novedades y playbook `add-auth-sdk.md`
-- **Relación con la base:** Modifica AGENTS.md §9 y §13.8 (CORS) y el proxy de confianza de `contrato-http.md`
+- **Relación con la base:** Modifica AGENTS.md §9 y §13.9 (CORS) y el proxy de confianza de `contrato-http.md`
 - **Reemplaza a:** 0006 (solo `credentials: false`) y 0017 (solo `HTTP_TRUST_PROXY_HOPS`)
 
 ## Contexto

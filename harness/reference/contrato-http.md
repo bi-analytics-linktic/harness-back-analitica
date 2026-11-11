@@ -1,6 +1,6 @@
 # Referencia: contrato HTTP
 
-Parte de la base del harness (AGENTS.md §9 y §10).
+Parte de la base del harness (AGENTS.md §8, §9 y §10).
 
 ## Respuesta exitosa
 
@@ -45,6 +45,8 @@ Siempre con el status HTTP correcto. `details` es opcional.
 | 503 | `DATABASE_UNAVAILABLE` | pg: conexión rechazada, `08*`, `57P01` |
 | 504 | `QUERY_TIMEOUT` | pg: `57014` (statement_timeout) |
 | 500 | `INTERNAL_ERROR` | cualquier otro; sin stack ni SQL |
+
+**Autenticación (SDK `@bi/iam-sdk`):** las rutas `/api/v1/auth/*` y el guard de los controllers responden con el formato del SDK, `{ error: { code, message } }`, sin `requestId`, `path` ni `timestamp` (excepción aceptada, ADR 0019). Códigos principales: `401` sin sesión o `INVALID_CREDENTIALS`, `403 FORBIDDEN` / `PROJECT_ACCESS_DENIED`, `423 ACCOUNT_LOCKED` y `429 TOO_MANY_ATTEMPTS` (con `Retry-After`), y `503 AUTH_UNAVAILABLE` si el IAM no responde. La tabla completa está en la documentación del SDK; la implementación, en `harness/playbooks/add-auth-sdk.md`.
 
 ## Cabeceras de seguridad
 
