@@ -48,10 +48,10 @@ const allowed = (file, source) => assert.deepEqual(lint(file, source), [], `${fi
 
 describe('plantilla eslint.boundaries.mjs', { skip: !eslint && 'eslint no está instalado: ejecuta pnpm install' }, () => {
   it('src/common no importa de src/modules', () => {
-    forbidden('src/common/auth/auth.service.ts', '../../modules/fidu/cartera/cartera.module', COMMON_IMPORTS_MODULES);
+    forbidden('src/common/health/health.service.ts', '../../modules/fidu/cartera/cartera.module', COMMON_IMPORTS_MODULES);
     forbidden('src/common/cache/cache.service.ts', 'src/modules/fidu/cartera/cartera.module', COMMON_IMPORTS_MODULES);
-    allowed('src/common/auth/auth.service.ts', '../http/envelope');
-    allowed('src/common/auth/auth.service.ts', '@nestjs/common');
+    allowed('src/common/health/health.service.ts', '../http/envelope');
+    allowed('src/common/health/health.service.ts', '@nestjs/common');
   });
 
   it('un módulo no importa de otro módulo del mismo cliente', () => {
@@ -111,7 +111,7 @@ describe('plantilla eslint.boundaries.mjs: configBoundaries', { skip: !eslint &&
   });
 
   it('src/config/ y los tests pueden leer process.env', () => {
-    for (const file of ['src/config/configuration.ts', 'src/config/env.validation.ts', 'src/common/cache/cache.service.spec.ts', 'test/auth.e2e-spec.ts']) {
+    for (const file of ['src/config/configuration.ts', 'src/config/env.validation.ts', 'src/common/cache/cache.service.spec.ts', 'test/health.e2e-spec.ts']) {
       assert.deepEqual(lintEnv(file, 'export const port = process.env.PORT;\n'), [], file);
     }
   });

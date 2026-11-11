@@ -13,17 +13,12 @@ export interface LoggingConfig {
   format: LogFormat;
 }
 
-/** Never logged in any format: credentials, tokens, session cookies and secrets. */
+/** Never logged in any format: credentials, cookies and passwords. */
 export const REDACT_PATHS = [
   'req.headers.authorization',
   'req.headers.cookie',
   'res.headers["set-cookie"]',
   '*.password',
-  '*.accessToken',
-  '*.refreshToken',
-  '*.ACCESS_TOKEN',
-  '*.JWT_ACCESS_SECRET',
-  '*.JWT_REFRESH_SECRET',
 ];
 
 /** Incoming X-Request-Id is reused only if it is short and safe; otherwise a UUID is generated. */

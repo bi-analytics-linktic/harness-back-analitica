@@ -1,5 +1,5 @@
 // Plantilla del harness → src/common/security/security-headers.ts (AGENTS.md §9, contrato-http.md "Cabeceras de seguridad").
-// Security headers for every response, without helmet. The monitor overwrites the CSP with its own.
+// Security headers for every response, without helmet.
 import type { NextFunction, Request, Response } from 'express';
 
 export const API_SECURITY_HEADERS: Readonly<Record<string, string>> = Object.freeze({

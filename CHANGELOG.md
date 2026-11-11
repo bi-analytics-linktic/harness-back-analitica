@@ -5,7 +5,30 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) y 
 - **minor:** reglas, playbooks, skills o checks nuevos compatibles;
 - **patch:** correcciones.
 
-## [Sin publicar]
+## [1.0.0] - 2026-11-11
+
+### Cambiado (incompatible)
+- **CORS con credenciales** (ADR 0019): `buildCorsOptions` usa `credentials: true`, permitido solo con la allowlist exacta de `CORS_ORIGINS`, para la sesión en cookies `HttpOnly` del SDK `@bi/iam-sdk`. AGENTS.md §9 y §13.9, `contrato-http.md`, `review.md` y el e2e de CORS.
+- **Proxy de confianza por red** (ADR 0019): `HTTP_TRUST_PROXY` (`loopback`, `linklocal`, `uniquelocal` o IP/subred) reemplaza a `HTTP_TRUST_PROXY_HOPS`; la app no arranca con `true` ni con un número de saltos. `init.sh` (`security.trust-proxy`) advierte ambos casos en `main.ts` y `HTTP_TRUST_PROXY_HOPS` en `.env.example`.
+- **Autenticación con el SDK del IAM** (ADR 0020): AGENTS.md §8 define `@bi/iam-sdk` como única forma de autenticación; el access token queda deprecado. Todo controller de `src/modules/` lleva `@IamAuth()` (§13.7, `review.md`), permisos con `@RequirePermission` y sin `IAM_ALLOWED_ROLES`. `@bi/iam-sdk` pasa a las dependencias aprobadas (§2). Rutas del SDK en `/api/v1/auth`.
+- `new-endpoint.md` pide el permiso del IAM en el contrato, `@IamAuth()` en el controller y e2e de `401`/`403`.
+
+### Agregado
+- Playbook `add-auth-sdk.md`: instalar el SDK con aprobación, retirar la autenticación anterior, implementar, probar, documentar (advertencia en `FRONT.md`) y alerta ante endpoints sin autenticación.
+
+### Eliminado
+- **Autenticación, límite de intentos y monitor** (ADR 0018), para redefinir la autenticación con documentación nueva:
+  - AGENTS.md §8 queda como aviso (la base no define autenticación); se quitan el monitor de §10, las prohibiciones del guard JWT y del monitor en §13, y `@nestjs/jwt`, `react` y `react-dom` de las dependencias aprobadas;
+  - plantillas `templates/config/auth.ts`, `templates/security/login-attempts.ts`, `session-lifetime.ts` y `security.module.ts`, `templates/monitor/` y `templates/e2e/monitor.e2e-spec.ts`, con sus specs; playbook `new-monitor-widget.md`;
+  - variables `ACCESS_TOKEN`, `JWT_*`, `AUTH_*` y `MONITOR_*`; secciones Autenticación y Monitor de `contrato-http.md` y `configuracion.md`;
+  - `init.sh`: `src/common/auth` deja de ser obligatorio y se quitan `security.login-rate-limit`, `security.session-max-age`, `security.monitor-env` y `security.monitor-guard`; `doctor` pierde las novedades `monitor`, `login-rate-limit` y `session-max-age`.
+- Se conservan `securityHeaders()` y `security.trust-proxy` (ahora en la novedad `security-headers`).
+
+### Para proyectos existentes
+- **CORS y proxy (ADR 0019):** cambia `credentials` a `true` en `src/config/cors.ts` solo cuando adoptes la autenticación del SDK. Reemplaza `HTTP_TRUST_PROXY_HOPS` por `HTTP_TRUST_PROXY` en `.env.example`, `.env.local`, cada entorno y `configuration.ts` (red privada: `loopback, uniquelocal`); `init.sh` lo advierte.
+- **Retiro de autenticación y monitor (ADR 0018):** `init.sh` deja de exigir `src/common/auth` y deja de verificar el monitor. El código que ya tengas en `src/common/auth/` o `src/common/monitor/` no se toca: retirarlo es decisión del repo.
+
+## [0.3.0] - 2026-10-26
 
 ### Agregado
 - **Última LTS de Node** (ADR 0015): `init.sh` compara `.nvmrc` con la última LTS de `nodejs.org` y advierte `toolchain.node-lts` si hay un major más nuevo; sin red lo omite. `NODE_LTS_VERSION` fija la LTS de referencia (`off` desactiva). Playbook `update-node-lts.md`: el agente analiza el impacto, lo presenta y actualiza solo con aprobación humana. AGENTS.md §0 y §16, agente `lider` y pistas de `doctor`.

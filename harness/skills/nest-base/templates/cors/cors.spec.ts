@@ -43,11 +43,11 @@ describe('buildCorsOptions', () => {
     return result;
   };
 
-  it('allows only origins in the allowlist and never uses credentials', () => {
+  it('allows only origins in the allowlist, with credentials', () => {
     expect(decide('https://app.example.com')).toBe(true);
     expect(decide('https://evil.example.com')).toBe(false);
     expect(decide(undefined)).toBe(false);
-    expect(options.credentials).toBe(false);
+    expect(options.credentials).toBe(true);
     expect(options.methods).toEqual(['GET', 'POST', 'OPTIONS']);
   });
 });

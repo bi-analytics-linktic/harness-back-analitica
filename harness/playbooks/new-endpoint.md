@@ -1,6 +1,6 @@
 # Playbook: crear un endpoint (reporte)
 
-Referencia de reglas: `AGENTS.md` §5 (patrón), §6 (BD), §7 (caché), §9 (contrato), §12 (documentación).
+Referencia de reglas: `AGENTS.md` §5 (patrón), §6 (BD), §7 (caché), §8 (autenticación), §9 (contrato), §12 (documentación).
 
 ## 0. Confirmar el contrato (antes de escribir código)
 
@@ -15,6 +15,7 @@ Filtros:      <nombre: tipo, obligatorio|opcional, default>
 Paginación:   sí|no  (pageSize default N, máx M)
 Orden:        <columnas permitidas>, default <col DESC>
 Caché TTL:    <segundos>
+Permiso:      <permiso del IAM, ej. reports:read>
 ```
 
 Si falta información, pregunta. No inventes columnas, tablas ni reglas.
@@ -28,7 +29,7 @@ Si falta información, pregunta. No inventes columnas, tablas ni reglas.
 5. `<endpoint>.sql.ts`: funciones puras `buildXQuery(filters): { text: string; values: unknown[] }` y, si pagina, `buildXCountQuery(filters)`. Todo valor va como `$n`, y el ORDER BY sale de una allowlist de `columns.ts`.
 6. `<endpoint>.repository.ts`: el token `X_REPOSITORY`, la interfaz `XRepository` y la clase `PgXRepository`, que inyecta el pool de la conexión nombrada.
 7. `<endpoint>.service.ts`: Cache-Aside con `CacheService`, y retorna `{ data, meta? }` junto al estado de caché.
-8. `<endpoint>.controller.ts`: `@Get('<segmento>')`, recibe el DTO, lo convierte en filtros, llama al service y fija `X-Cache`.
+8. `<endpoint>.controller.ts`: `@IamAuth()` en la clase y `@RequirePermission('<permiso>')` en el handler (AGENTS.md §8), `@Get('<segmento>')`, recibe el DTO, lo convierte en filtros, llama al service y fija `X-Cache`.
 9. Registrar controller, service y provider del repository (`{ provide: X_REPOSITORY, useClass: PgXRepository }`) en `<modulo>.module.ts`.
 
 Aplica la regla de agrupación (más de 2 archivos del mismo tipo en una carpeta → carpeta por tipo). `init.sh` verifica que el endpoint tenga todos estos archivos y los specs de la sección 2.
@@ -37,10 +38,10 @@ Aplica la regla de agrupación (más de 2 archivos del mismo tipo en una carpeta
 
 - `*.sql.spec.ts`: valida `text` y `values` para cada combinación de filtros, y que ningún valor aparezca interpolado en `text`.
 - `*.service.spec.ts`: HIT, MISS, BYPASS (caché lanza error o está deshabilitada), con y sin paginación.
-- `*.controller.spec.ts`: delega al service y fija `X-Cache`.
+- `*.controller.spec.ts`: delega al service, fija `X-Cache` y tiene la metadata de `@IamAuth()` y del permiso.
 - `*.repository.spec.ts`: con pool mockeado, verifica que ejecuta el SQL del builder y mapea las filas.
 - `*-query.dto.spec.ts`: casos válidos e inválidos.
-- E2E en `test/`: 401 sin token, 200 con token y envelope correcto, 400 con filtro inválido.
+- E2E en `test/`: 401 sin sesión, 403 sin el permiso, 200 con envelope correcto y 400 con filtro inválido.
 
 ## 3. Documentación
 
@@ -48,7 +49,6 @@ Aplica la regla de agrupación (más de 2 archivos del mismo tipo en una carpeta
 
 Agrega la request en `postman/arness-back.postman_collection.json`, dentro de la carpeta `<cliente>/<modulo>`:
 - `GET {{baseUrl}}/api/v1/<modulo>/<segmento>?param=ejemplo`
-- Auth: heredada de la colección (`Bearer {{accessToken}}`)
 - Sin descripciones largas.
 
 ### FRONT.md
@@ -58,7 +58,7 @@ Agrega una sección con esta plantilla:
 ````markdown
 ### <Nombre legible del reporte>
 
-`GET /api/v1/<modulo>/<segmento>` · requiere `Authorization: Bearer <accessToken>`
+`GET /api/v1/<modulo>/<segmento>` · requiere sesión (`credentials: 'include'`) y el permiso `<permiso>`
 
 Qué devuelve: <una frase>.
 
@@ -71,7 +71,7 @@ Qué devuelve: <una frase>.
 { "data": [{ "col1": "…", "col2": 0 }], "meta": { "pagination": { "page": 1, "pageSize": 50, "total": 120, "totalPages": 3 } } }
 ```
 
-**Consumo recomendado:** <paginar con pageSize ≤ N | traer completo>; <filtros a enviar siempre>; ante `401 TOKEN_EXPIRED`, llamar a `/auth/refresh` y reintentar una vez; datos cacheados en servidor por <TTL>, así que no hace falta hacer polling más frecuente.
+**Consumo recomendado:** <paginar con pageSize ≤ N | traer completo>; <filtros a enviar siempre>; ante `401` volver al login y ante `403` avisar que falta el permiso; datos cacheados en servidor por <TTL>, así que no hace falta hacer polling más frecuente.
 ````
 
 ### README del módulo

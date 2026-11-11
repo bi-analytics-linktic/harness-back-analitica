@@ -1,6 +1,6 @@
 # 0017. Endurecimiento de la autenticación: intentos, sesión y cabeceras
 
-- **Estado:** Aceptada
+- **Estado:** Aceptada (límite de intentos y vida de la sesión retirados por 0018; siguen vigentes las cabeceras; `HTTP_TRUST_PROXY_HOPS` reemplazada por `HTTP_TRUST_PROXY` en 0019)
 - **Fecha:** 2026-10-26
 - **Decidido por:** Equipo backend de Analítica
 - **Alcance:** plantillas `templates/security/` y `templates/config/auth.ts`, `templates/monitor/monitor.controller.ts`, `contrato-http.md`, `configuracion.md`, AGENTS.md §8 y §9, skill `nest-base`, `review.md`, `init.sh` y catálogo de novedades

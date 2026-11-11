@@ -40,39 +40,13 @@ Siempre con el status HTTP correcto. `details` es opcional.
 | Status | `code` | Origen típico |
 |---|---|---|
 | 400 | `VALIDATION_ERROR` | DTO inválido |
-| 401 | `UNAUTHORIZED` / `TOKEN_EXPIRED` / `INVALID_CREDENTIALS` / `SESSION_EXPIRED` | guard, login o refresh |
 | 403 | `FORBIDDEN` | — |
 | 404 | `NOT_FOUND` | ruta o recurso |
-| 429 | `TOO_MANY_ATTEMPTS` | login bloqueado por intentos fallidos (con `Retry-After`) |
 | 503 | `DATABASE_UNAVAILABLE` | pg: conexión rechazada, `08*`, `57P01` |
 | 504 | `QUERY_TIMEOUT` | pg: `57014` (statement_timeout) |
 | 500 | `INTERNAL_ERROR` | cualquier otro; sin stack ni SQL |
 
-## Autenticación
-
-| Endpoint | Body | Respuesta |
-|---|---|---|
-| `POST /api/v1/auth/login` | `{ "password": "..." }` | `{ data: { accessToken, refreshToken, expiresIn } }` |
-| `POST /api/v1/auth/refresh` | `{ "refreshToken": "..." }` | `{ data: { accessToken, refreshToken, expiresIn } }` |
-
-- `password` se compara con `ACCESS_TOKEN` en tiempo constante: `crypto.timingSafeEqual` sobre el sha256 de ambos valores.
-- Los tokens usan secretos distintos; el claim `type` (`access` o `refresh`) se valida. Un token de otro tipo (`refresh`, o el `monitor` de la cookie) como `Bearer` → `401 UNAUTHORIZED`; un access token en `/auth/refresh` → `401 UNAUTHORIZED`.
-- Los clientes envían `Authorization: Bearer <accessToken>`. Ante `401 TOKEN_EXPIRED`, llaman a `/auth/refresh` y reintentan una vez. Ante `401 SESSION_EXPIRED` o `429`, vuelven al login.
-
-### Vida máxima de la sesión
-
-- `/auth/login` emite el par con el claim `auth_time` (segundos, hora del login). `/auth/refresh` **copia** el `auth_time` del refresh token al par nuevo: refrescar nunca extiende la sesión.
-- Si `ahora - auth_time >= AUTH_SESSION_MAX_AGE_SECONDS` (default 12 h), o el refresh token no trae `auth_time`, el refresh responde `401 SESSION_EXPIRED` y el cliente debe volver a `/auth/login`. Así, un refresh token robado deja de servir como mucho al cumplir esa edad.
-- Para cortar todas las sesiones de inmediato, se rota `JWT_REFRESH_SECRET` (y `JWT_ACCESS_SECRET` si hace falta).
-- Implementación de referencia: `templates/security/session-lifetime.ts` → `src/common/security/` (`sessionClaims`, `isSessionExpired`).
-
-### Límite de intentos
-
-- `/auth/login` y `/monitor/login` comparten `LoginAttemptLimiter` (`templates/security/login-attempts.ts` → `src/common/security/`, provisto por `SecurityModule`, global). Cuenta los intentos fallidos **por IP** (`req.ip`) en memoria.
-- Al llegar a `AUTH_LOGIN_MAX_ATTEMPTS` fallos (default 5) dentro de `AUTH_LOGIN_WINDOW_SECONDS` (default 900, contados desde el primer fallo), la IP queda bloqueada hasta que termina la ventana: responde `429 TOO_MANY_ATTEMPTS` con `Retry-After: <segundos>` **sin comparar la contraseña**. Un login correcto reinicia el contador.
-- Orden en el controller: `check(ip)` → si no está permitido, `429`; si la contraseña es incorrecta, `registerFailure(ip)` y `401 INVALID_CREDENTIALS`; si es correcta, `reset(ip)` y el par de tokens.
-- **IP real detrás de un proxy:** con `HTTP_TRUST_PROXY_HOPS=<n>` (Azure App Service o un gateway: `1`), `main.ts` llama a `app.set('trust proxy', n)` y `req.ip` sale de `X-Forwarded-For`. Con `0` (default) se usa la IP del socket. Nunca `true`: permitiría falsificar la IP con la cabecera.
-- El contador es **por instancia** y no depende de Redis: con varias réplicas, cada una cuenta aparte. El map tiene un tope de 10 000 IPs.
+**Autenticación (SDK `@bi/iam-sdk`):** las rutas `/api/v1/auth/*` y el guard de los controllers responden con el formato del SDK, `{ error: { code, message } }`, sin `requestId`, `path` ni `timestamp` (excepción aceptada, ADR 0019). Códigos principales: `401` sin sesión o `INVALID_CREDENTIALS`, `403 FORBIDDEN` / `PROJECT_ACCESS_DENIED`, `423 ACCOUNT_LOCKED` y `429 TOO_MANY_ATTEMPTS` (con `Retry-After`), y `503 AUTH_UNAVAILABLE` si el IAM no responde. La tabla completa está en la documentación del SDK; la implementación, en `harness/playbooks/add-auth-sdk.md`.
 
 ## Cabeceras de seguridad
 
@@ -87,7 +61,9 @@ Siempre con el status HTTP correcto. `details` es opcional.
 | `Strict-Transport-Security` | `max-age=31536000` |
 | `Cache-Control` | `no-store` (las respuestas llevan datos privados; la caché es la de Redis) |
 
-Además quita `X-Powered-By`. El monitor reemplaza la CSP por la suya (sección Monitor).
+Además quita `X-Powered-By`.
+
+**IP real detrás de un proxy:** `HTTP_TRUST_PROXY` lista los proxies de confianza por red (`loopback`, `linklocal`, `uniquelocal`) o por IP/subred (`10.0.0.0/8`). Si está definida, `main.ts` llama a `app.set('trust proxy', <valor>)` y `req.ip` sale de `X-Forwarded-For` solo cuando la conexión viene de esos proxies. Vacía (default), se usa la IP del socket. Balanceador en red privada: `loopback, uniquelocal`. **Nunca `true` ni un número de saltos**: si la app también es accesible sin pasar por el balanceador, cualquiera falsificaría su IP con la cabecera (y el IAM limita los intentos de login por IP).
 
 ## CORS
 
@@ -99,13 +75,14 @@ Allowlist por entorno: solo los orígenes de `CORS_ORIGINS` reciben `Access-Cont
 | `methods` | `GET, POST, OPTIONS` |
 | `allowedHeaders` | `Authorization, Content-Type, X-Request-Id` |
 | `exposedHeaders` | `X-Cache, X-Request-Id` |
-| `credentials` | `false` (la API usa `Bearer`, no cookies) |
+| `credentials` | `true`: la sesión de autenticación va en cookies `HttpOnly`. Es seguro solo porque `origin` compara contra la allowlist exacta |
 | `maxAge` | `CORS_MAX_AGE_SECONDS` (default 600) |
 | `optionsSuccessStatus` | `204` |
 
 - **Validación al arrancar** (`src/config/`): `CORS_ORIGINS` es obligatoria; se rechazan `*` y comodines, valores que no son un origen (`esquema://host[:puerto]`, sin ruta) y `http://` fuera de `localhost`, `127.0.0.1` o `[::1]`.
-- **Prohibido:** `enableCors()` sin opciones, `origin: true`, `origin: '*'`, reflejar el `Origin` recibido o `credentials: true`.
-- **Tests:** `src/config/cors.spec.ts` (parseo y validación) y `test/cors.e2e-spec.ts`: preflight permitido → `204` con `Access-Control-Allow-Origin`, métodos, cabeceras y `max-age`; preflight de un origen no permitido → sin `Access-Control-Allow-Origin`.
+- **Prohibido:** `enableCors()` sin opciones, `origin: true`, `origin: '*'`, reflejar el `Origin` recibido, o `credentials: true` con cualquier `origin` que no sea la allowlist exacta.
+- **Mismos orígenes en la autenticación:** `CORS_ORIGINS` es también el `allowedOrigins` de las rutas de autenticación (`/api/v1/auth`), que verifican el `Origin` de cada petición. No se mantiene una segunda lista.
+- **Tests:** `src/config/cors.spec.ts` (parseo y validación) y `test/cors.e2e-spec.ts`: preflight permitido → `204` con `Access-Control-Allow-Origin`, `Access-Control-Allow-Credentials: true`, métodos, cabeceras y `max-age`; preflight de un origen no permitido → sin `Access-Control-Allow-Origin` ni `Access-Control-Allow-Credentials`.
 - `init.sh` advierte si `.env.example` no define `CORS_ORIGINS` o lo define con `*`, y si `src/main.ts` no llama a `enableCors` o lo abre a cualquier origen.
 
 ## Caché
@@ -117,7 +94,7 @@ Allowlist por entorno: solo los orígenes de `CORS_ORIGINS` reciben `Access-Cont
 
 - JSON estructurado (`nestjs-pino`). `requestId` desde `X-Request-Id` (si es seguro: `[A-Za-z0-9._-]`, máximo 128) o UUID generado, devuelto en la respuesta.
 - Por request: método, ruta, status, duración, resultado de caché y conexión de BD.
-- Redact: `authorization`, cookies (`cookie` y `set-cookie`), `password`, `accessToken`, `refreshToken`, `*_SECRET` y `*_PASSWORD`.
+- Redact: `authorization`, cookies (`cookie` y `set-cookie`) y `password`.
 - Plantilla: `harness/skills/nest-base/templates/logging/logger-options.ts` (`buildLoggerParams`, `parseLogFormat`, `REDACT_PATHS`).
 
 ### Formato por entorno (`LOG_FORMAT`)
@@ -145,25 +122,3 @@ Allowlist por entorno: solo los orígenes de `CORS_ORIGINS` reciben `Access-Cont
 | Redis caído o deshabilitado | sigue en `200`; `cache: down / disabled` |
 
 `init.sh` consume este formato para informar qué base está caída.
-
-## Monitor
-
-Tablero de estado para el equipo, **fuera de `/api/v1`** y apagado por defecto. Implementación de referencia: `harness/skills/nest-base/templates/monitor/` → `src/common/monitor/`.
-
-| Ruta | Sesión | Respuesta |
-|---|---|---|
-| `GET /monitor` | cookie | HTML con los widgets; sin sesión → `303` a `/monitor/login` |
-| `GET /monitor/login` | — | formulario HTML (`password`) |
-| `POST /monitor/login` | — | correcta → `303` a `/monitor` y `Set-Cookie`; incorrecta → `401` con el formulario y sin cookie |
-| `POST /monitor/logout` | — | borra la cookie (`Max-Age=0`) y `303` a `/monitor/login` |
-
-- **Activación:** `MONITOR_ENABLED=true`. Con cualquier otro valor, todas las rutas responden `404`.
-- **Render:** `react-dom/server` (`renderToStaticMarkup`) con `createElement`, sin JSX, sin hidratación, sin bundler y sin `<script>`. Estilos inline.
-- **Login:** la contraseña se compara con `ACCESS_TOKEN` en tiempo constante, igual que `/auth/login`. Al acertar se emite un JWT con `type: "monitor"` (firmado con `JWT_ACCESS_SECRET`, dura `MONITOR_SESSION_EXPIRES_IN`) en la cookie `arness_monitor`: `HttpOnly; Secure; SameSite=Strict; Path=/monitor; Max-Age=<duración>`. Un access token (`type: "access"`) no sirve como cookie ni la cookie sirve como `Bearer`.
-- **Guards:** el controller lleva `@MonitorRoute()`, que `JwtAuthGuard` omite, y `MonitorSessionGuard`, que exige la cookie salvo en los handlers `@MonitorLogin()` (formulario, login y logout). No es `@Public()`.
-- **Límite de intentos:** comparte `LoginAttemptLimiter` con `/auth/login` (sección Autenticación). Bloqueado → `429` con `Retry-After` y el formulario con "Demasiados intentos", sin cookie.
-- **Cabeceras en toda respuesta:** `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`, `Cache-Control: no-store`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` y `Referrer-Policy: no-referrer`.
-- **Widgets:** `MonitorWidget { id; title; order; collect(): Promise<MonitorValue> }`, registrados en el multi-provider `MONITOR_WIDGETS` de `MonitorModule`. Un widget que lanza o tarda más de 2 s se muestra como "No disponible"; el log registra solo el tipo de error, nunca su mensaje.
-- **Widget base `endpoints-total`:** cuenta las rutas HTTP con `DiscoveryService` y `MetadataScanner`, excluye `monitor`, `health` y `auth`, y desglosa por el primer segmento de la ruta (el módulo).
-- **Nunca se muestran:** secretos, variables de entorno, SQL, errores de PostgreSQL ni datos de negocio (filas, montos, nombres de clientes). Solo conteos y estados técnicos.
-- **Tests:** unit de servicio, página, sesión, guard y widget; e2e `test/monitor.e2e-spec.ts` (redirección sin cookie, `401` sin cookie con contraseña incorrecta, login y conteo correcto con controllers de prueba, widget con error que no rompe la página, sin `<script>`, `404` con `MONITOR_ENABLED=false`).

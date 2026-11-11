@@ -24,7 +24,6 @@ Por defecto **los hallazgos son advertencias** (`⚠`, exit 0): el proyecto sigu
 Plantilla base para los **backends de analítica** del equipo:
 - **Reportes de solo lectura** sobre una o varias bases **PostgreSQL**.
 - Organización **cliente → módulo → endpoint**, con arquitectura hexagonal por feature.
-- **JWT (access + refresh)** en todos los endpoints, sin usuarios en BD.
 - **Redis como caché opcional**: la API funciona igual con Redis activo, desactivado o caído.
 
 No es transaccional: no crea, modifica ni borra datos de negocio.
@@ -39,11 +38,11 @@ No es transaccional: no crea, modifica ni borra datos de negocio.
 | BD | PostgreSQL vía `pg`, SQL nativo, **sin ORM ni query builder** |
 | Caché | Redis vía `ioredis`, Cache-Aside, degradable |
 | Config / validación | `@nestjs/config`, `class-validator`, `class-transformer` |
-| Auth / logs / health | `@nestjs/jwt`, `nestjs-pino`, `@nestjs/terminus` |
+| Logs / health | `nestjs-pino`, `@nestjs/terminus` |
 | Calidad / tests | ESLint + Prettier; Jest + Supertest |
 | Entrega | Docker + Azure Pipelines |
 
-**Dependencias aprobadas:** las de la tabla, `pino-http`, `@types/pg`, `@bi-analytics/arness-back` (dev) y las que genera `nest new`. Además `react` y `react-dom` (con `@types/react` y `@types/react-dom` en dev), **solo** para renderizar el monitor en el servidor (§10), y `pino-pretty` **solo como devDependency**, para el formato legible de logs en desarrollo (§10). Cualquier otra requiere aprobación humana registrada en `harness/decisiones/`. La base del proyecto se crea con la skill `nest-base`.
+**Dependencias aprobadas:** las de la tabla, `pino-http`, `@types/pg`, `@bi-analytics/arness-back` (dev) y las que genera `nest new`. Además `@bi/iam-sdk`, el SDK de autenticación del IAM de Linktic (§8), instalado desde la URL del IAM con la versión exacta; actualizarlo también requiere aprobación. Además `pino-pretty` **solo como devDependency**, para el formato legible de logs en desarrollo (§10). Cualquier otra requiere aprobación humana registrada en `harness/decisiones/`. La base del proyecto se crea con la skill `nest-base`.
 
 ## 3. Comandos
 
@@ -64,7 +63,7 @@ pnpm arness decision new "<título>" # nueva decisión en harness/decisiones/
 src/
 ├── main.ts · app.module.ts
 ├── config/          # carga y validación de variables de entorno
-├── common/          # transversal, sin negocio: auth, database, cache, http, logging, health, monitor
+├── common/          # transversal, sin negocio: database, cache, http, logging, health, security
 └── modules/<cliente>/<modulo>/
     ├── README.md
     ├── <modulo>.module.ts
@@ -119,13 +118,12 @@ Un reporte es `GET /api/v1/<modulo>/<segmento>` y vive en una carpeta con estos 
 
 ## 8. Autenticación
 
-- **Sin usuarios en BD:** `POST /api/v1/auth/login` recibe `{ password }` y lo compara en tiempo constante con `ACCESS_TOKEN`. Devuelve un access token y un refresh token.
-- **Refresh:** `POST /api/v1/auth/refresh` emite un par nuevo con el mismo `auth_time` del login: ninguna sesión dura más de `AUTH_SESSION_MAX_AGE_SECONDS` (`401 SESSION_EXPIRED`).
-- **Límite de intentos:** `/auth/login` y `/monitor/login` comparten `LoginAttemptLimiter` (por IP, en memoria, sin Redis): `429 TOO_MANY_ATTEMPTS` con `Retry-After`.
-- **Tokens:** secretos distintos para access y refresh, y el claim `type` se valida.
-- **Guard global:** `JwtAuthGuard` protege todo; `@Public()` **solo** en `login`, `refresh` y `health`.
-- **Monitor:** no es `@Public()`. `JwtAuthGuard` omite las rutas marcadas con `@MonitorRoute()` y las protege `MonitorSessionGuard` con su cookie de sesión (§10). El resto de la API solo acepta `Bearer`.
-- **Detalle:** `harness/reference/contrato-http.md`.
+- **Única forma: el SDK `@bi/iam-sdk`** del IAM de Linktic. Toda autenticación por access token (`ACCESS_TOKEN`, JWT propio, `Bearer`) está **deprecada**: no se implementa ni se mantiene, y no se crea ninguna otra.
+- **Ninguna ruta sin autenticación:** todo controller de `src/modules/` lleva `@IamAuth()`. Solo quedan abiertas `GET /health` y las rutas del SDK en `/api/v1/auth/*`.
+- **Permisos desde el SDK:** se autoriza con `@RequirePermission('<permiso>')`, no por rol, y los nombres de permiso los define el humano. Sin listas de roles en variables de entorno (`IAM_ALLOWED_ROLES` se elimina).
+- **Sesión en cookies `HttpOnly`** que gestiona el SDK: los tokens nunca llegan al front. Por eso CORS lleva `credentials: true` (§9).
+- **Credenciales** en `IAM_URL`, `IAM_CLIENT_ID` e `IAM_CLIENT_SECRET` (secreto, sin default).
+- **Detalle e implementación:** `harness/playbooks/add-auth-sdk.md`. Antes de escribir código, lee la documentación incluida en el SDK (`node_modules/@bi/iam-sdk/AGENTS.md` y `docs/GUIDE.md`).
 
 ## 9. Contrato HTTP
 
@@ -135,32 +133,31 @@ Un reporte es `GET /api/v1/<modulo>/<segmento>` y vive en una carpeta con estos 
 - **Error:** `{ error: { code, message, details?, requestId, path, timestamp } }` con el status HTTP correcto.
 - Los errores de PostgreSQL nunca se exponen tal cual.
 - **Cabeceras de seguridad:** `securityHeaders()` en toda respuesta (CSP, `nosniff`, `X-Frame-Options`, `no-store`, HSTS) y sin `X-Powered-By`, sin helmet.
-- **CORS:** allowlist por entorno en `CORS_ORIGINS` (orígenes exactos, `https://` salvo `localhost`). Nunca `*`, `origin: true` ni reflejar el origen de la petición; sin `credentials`. Métodos `GET`, `POST` y `OPTIONS`.
+- **CORS:** allowlist por entorno en `CORS_ORIGINS` (orígenes exactos, `https://` salvo `localhost`). Nunca `*`, `origin: true` ni reflejar el origen de la petición. `credentials: true` (la sesión va en cookies `HttpOnly`) solo con esa allowlist exacta. Métodos `GET`, `POST` y `OPTIONS`.
 - **Ejemplos, tabla de códigos y CORS:** `harness/reference/contrato-http.md`.
 
-## 10. Logging, health y monitor
+## 10. Logging y health
 
 - **Logs:** JSON estructurado con `requestId` (`X-Request-Id`), con redacción de tokens, contraseñas y secretos. Nunca `console.log`. En desarrollo local, `LOG_FORMAT=pretty` muestra una línea legible por evento con los mismos campos y la misma redacción; por defecto y en producción siempre es `json` (la app no arranca con `pretty` y `NODE_ENV=production`).
 - **Health:** `GET /health` es público y reporta cada BD y la caché. Si una BD está caída responde `503`; si Redis está caído o deshabilitado, sigue en `200`.
-- **Monitor:** `GET /monitor`, fuera de `/api/v1`, es un tablero HTML renderizado en el servidor con React, sin JavaScript en el cliente. Se activa con `MONITOR_ENABLED=true` (si no, `404`). Pide la misma contraseña que `/auth/login` y abre una sesión en cookie `HttpOnly`, `Secure`, `SameSite=Strict`, `Path=/monitor`. Cada dato es un widget (`MonitorWidget`) y un widget que falla se muestra como "no disponible". **Nunca** muestra secretos, SQL, errores de PostgreSQL ni datos de negocio. Detalle: `harness/reference/contrato-http.md`; widgets nuevos: `harness/playbooks/new-monitor-widget.md`.
 
 ## 11. Tests (estándar NestJS)
 
 - **Unit:** `*.spec.ts` junto a cada archivo, con `Test.createTestingModule`. El repository se mockea por su token; `.sql.ts` se prueba como función pura (`text` + `values`).
-- **E2E:** `test/*.e2e-spec.ts` con Supertest: auth, envelope, errores y `X-Cache`.
+- **E2E:** `test/*.e2e-spec.ts` con Supertest: autenticación (sin sesión → `401`, sin permiso → `403`), envelope, errores y `X-Cache`.
 - Todo cambio de comportamiento lleva su test. Nunca `.skip` ni `.only` para pasar el pipeline.
 
 ## 12. Documentación obligatoria
 
 Crear o cambiar un endpoint actualiza, **en el mismo cambio**:
-1. **`postman/arness-back.postman_collection.json`** (v2.1): una request mínima en la carpeta `<cliente>/<modulo>`, con `{{baseUrl}}` y `Bearer {{accessToken}}`.
+1. **`postman/arness-back.postman_collection.json`** (v2.1): una request mínima en la carpeta `<cliente>/<modulo>`, con `{{baseUrl}}` (la sesión la da el `Login` de la carpeta `Auth`).
 2. **`FRONT.md`**: guía breve para frontend con qué devuelve, parámetros, un ejemplo recortado y **cómo consumirlo de forma recomendada**. La plantilla está en el playbook `new-endpoint`.
 3. **`README.md` del módulo**: propósito, endpoints, conexión y tablas o vistas.
 
 Cambiar `.columns.ts`, los filtros o el envelope es un **cambio de contrato**: actualiza `FRONT.md` y sube la versión de la clave de caché.
 
 **Documentación del proyecto (`docs/`)**, plantillas en `harness/skills/nest-base/templates/docs/`:
-- **`docs/EVOLUTIVO.md`**: toda entrega (endpoint, módulo, conexión, widget del monitor, cambio de contrato) agrega **en el mismo cambio** una entrada al final: fecha y hora de Bogotá (`TZ=America/Bogota date '+%Y-%m-%d %H:%M %z'`), cliente/módulo, **responsable** (`git config user.name` de quien trabaja en ese momento; si está vacío, pregúntalo y nunca pongas el nombre del agente), qué se entregó en lenguaje de negocio y referencia. **Solo avance:** nunca pendientes, bloqueos, stoppers ni riesgos. Las entradas anteriores no se reescriben.
+- **`docs/EVOLUTIVO.md`**: toda entrega (endpoint, módulo, conexión, cambio de contrato) agrega **en el mismo cambio** una entrada al final: fecha y hora de Bogotá (`TZ=America/Bogota date '+%Y-%m-%d %H:%M %z'`), cliente/módulo, **responsable** (`git config user.name` de quien trabaja en ese momento; si está vacío, pregúntalo y nunca pongas el nombre del agente), qué se entregó en lenguaje de negocio y referencia. **Solo avance:** nunca pendientes, bloqueos, stoppers ni riesgos. Las entradas anteriores no se reescriben.
 - **`docs/PENDIENTES.md`**: lo que quedó abierto (pendientes, bloqueos, recomendaciones, deuda técnica, advertencias de `init.sh` sin corregir), con fecha, contexto y tipo. Al resolverse pasa a *Resueltos*.
 - **`docs/TECNICO.md`**: arquitectura, módulos, conexiones (sin credenciales), variables propias, despliegue y enlace a las decisiones. Se actualiza cuando cambian.
 - `FRONT.md` sigue en la raíz.
@@ -174,12 +171,11 @@ Un agente **nunca**:
 4. Agrega, quita o actualiza dependencias sin aprobación humana.
 5. Loguea o devuelve tokens, contraseñas, stack traces o errores crudos de PostgreSQL.
 6. Hace que la API dependa de Redis.
-7. Deja un endpoint sin `JwtAuthGuard` (salvo `login`, `refresh` y `health`).
+7. Deja un endpoint de `src/modules/` sin `@IamAuth()`, implementa una autenticación distinta del SDK `@bi/iam-sdk`, o devuelve tokens al front.
 8. Usa npm o yarn, o hace commit de `dist/`, `node_modules/`, `.env` o `.env.local`.
-9. Abre CORS (`*`, `origin: true` o reflejar el origen) o habilita `credentials`.
-10. Deja el monitor sin `MonitorSessionGuard`, lo marca `@Public()` o muestra en él secretos, SQL, errores crudos o datos de negocio.
-11. Importa `modules/` desde `common/`, o un módulo o cliente desde otro.
-12. Lee `process.env` fuera de `src/config/` (salvo en tests).
+9. Abre CORS (`*`, `origin: true` o reflejar el origen), o habilita `credentials` sin la allowlist exacta de `CORS_ORIGINS`.
+10. Importa `modules/` desde `common/`, o un módulo o cliente desde otro.
+11. Lee `process.env` fuera de `src/config/` (salvo en tests).
 
 ## 14. Convenciones
 
@@ -196,7 +192,7 @@ Un agente **nunca**:
 3. **Definition of Done:**
    - [ ] Patrón §5 completo, con un spec por archivo
    - [ ] SQL solo en `.sql.ts` y parametrizado
-   - [ ] Guard JWT activo y `X-Cache` presente
+   - [ ] `@IamAuth()` en el controller, `@RequirePermission` confirmado con el humano y `X-Cache` presente
    - [ ] Postman, `FRONT.md` y README del módulo actualizados
    - [ ] Entrada en `docs/EVOLUTIVO.md` (solo avance) y lo abierto en `docs/PENDIENTES.md`
    - [ ] Variables nuevas en `.env.example`, `.env.local` y `src/config/`
@@ -217,11 +213,11 @@ Ante ambigüedad de negocio o datos, **pregunta**. No inventes columnas, tablas 
 | Crear un endpoint | `harness/playbooks/new-endpoint.md` |
 | Crear un módulo o cliente | `harness/playbooks/new-module.md` |
 | Agregar una conexión de BD | `harness/playbooks/add-database.md` |
-| Agregar un widget al monitor | `harness/playbooks/new-monitor-widget.md` |
+| Autenticación con el SDK del IAM | `harness/playbooks/add-auth-sdk.md` |
 | Actualizar Node a la última LTS | `harness/playbooks/update-node-lts.md` |
 | Revisar un cambio | `harness/playbooks/review.md` |
 | Variables de entorno | `harness/reference/configuracion.md` |
-| Envelope, errores, auth, CORS, health, monitor | `harness/reference/contrato-http.md` |
+| Envelope, errores, cabeceras, CORS, logging, health | `harness/reference/contrato-http.md` |
 | Registrar una decisión | `harness/decisiones/README.md` |
 
 ## 17. Decisiones (base inmutable)
